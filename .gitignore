@@ -1,0 +1,15 @@
+*.log
+
+# ----[ Visual Studio generated ]------- #
+.vs/
+ExportedObj/
+.consulo/
+*.suo
+*.tmp
+*.user
+*.booproj
+*.svd
+*.pdb
+*.opendb
+bin/
+obj/
