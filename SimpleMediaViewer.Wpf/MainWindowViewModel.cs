@@ -16,12 +16,15 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly MediaPlayerService _mediaPlayerService;
     private readonly WebPPlayerService _webPPlayerService;
+    private readonly GifPlayerService _gifPlayerService;
     private string? _currentFilePath;
     private Visibility _videoViewVisibility = Visibility.Collapsed;
     private Visibility _imageViewVisibility = Visibility.Visible;
     private Stretch _imageStretch = Stretch.Uniform;
     private Stretch _videoStretch = Stretch.Uniform;
     private BitmapSource? _imageSource;
+    private bool _isGifPlaying = false;
+    private bool _isWebPPlaying = false;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -69,9 +72,13 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     {
         _mediaPlayerService = new MediaPlayerService();
         _webPPlayerService = new WebPPlayerService();
+        _gifPlayerService = new GifPlayerService();
 
         // WebPフレーム変更イベント
         _webPPlayerService.FrameChanged += (s, e) => ImageSource = e;
+
+        // GIFフレーム変更イベント
+        _gifPlayerService.FrameChanged += (s, e) => ImageSource = e;
 
         // コマンドの初期化
         FitCommand = new RelayCommand(ExecuteFit);
@@ -95,9 +102,16 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 
     private void ExecutePlay()
     {
-        if (_webPPlayerService.IsPlaying == false && ImageViewVisibility == Visibility.Visible)
+        if (ImageViewVisibility == Visibility.Visible)
         {
-            _webPPlayerService.Resume();
+            if (_isWebPPlaying && !_webPPlayerService.IsPlaying)
+            {
+                _webPPlayerService.Resume();
+            }
+            else if (_isGifPlaying && !_gifPlayerService.IsPlaying)
+            {
+                _gifPlayerService.Resume();
+            }
         }
         else
         {
@@ -108,6 +122,7 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     private void ExecuteStop()
     {
         _webPPlayerService.Stop();
+        _gifPlayerService.Stop();
         _mediaPlayerService.Stop();
     }
 
@@ -120,7 +135,12 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 
         // 既存再生停止
         _webPPlayerService.Stop();
+        _gifPlayerService.Stop();
         _mediaPlayerService.Stop();
+
+        // フラグをリセット
+        _isWebPPlaying = false;
+        _isGifPlaying = false;
 
         _currentFilePath = path;
 
@@ -129,6 +149,10 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         if (extension == ".webp")
         {
             await LoadWebPAsync(path);
+        }
+        else if (extension == ".gif")
+        {
+            await LoadGifAsync(path);
         }
         else if (IsImageFile(extension))
         {
@@ -153,12 +177,36 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
             // アニメーションフレームが複数ある場合は自動再生
             if (_webPPlayerService.FrameCount > 1)
             {
+                _isWebPPlaying = true;
                 _webPPlayerService.Play(loop: true);
             }
         }
         catch (Exception ex)
         {
             MessageBox.Show($"WebP読み込みエラー: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task LoadGifAsync(string path)
+    {
+        try
+        {
+            await _gifPlayerService.LoadAsync(path);
+
+            // ビューの表示切り替え
+            VideoViewVisibility = Visibility.Collapsed;
+            ImageViewVisibility = Visibility.Visible;
+
+            // アニメーションフレームが複数ある場合は自動再生
+            if (_gifPlayerService.FrameCount > 1)
+            {
+                _isGifPlaying = true;
+                _gifPlayerService.Play(loop: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"GIF読み込みエラー: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -203,7 +251,7 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 
     private bool IsImageFile(string extension)
     {
-        var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff" };
+        var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".tiff" };
         return imageExtensions.Contains(extension);
     }
 
@@ -227,6 +275,7 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         _webPPlayerService?.Dispose();
+        _gifPlayerService?.Dispose();
         _mediaPlayerService?.Dispose();
     }
 }
