@@ -1,14 +1,7 @@
-﻿using System.IO;
-using System.Text;
+﻿using LibVLCSharp.Shared;
+using System.IO;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace SimpleMediaViewer.Wpf
 {
@@ -17,21 +10,45 @@ namespace SimpleMediaViewer.Wpf
     /// </summary>
     public partial class MainWindow : Window
     {
+        private LibVLCSharp.Shared.LibVLC _libVLC;
+        private LibVLCSharp.Shared.MediaPlayer _mediaPlayer;
+        private WebPAnimationPlayer? _webPPlayer;
+        private string? _currentFilePath;
+
         public MainWindow()
         {
             this.DataContext = new Wpf.MainWindowViewModel();
             InitializeComponent();
-            /*
-            // 起動時に画像読み込み（例）
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.UriSource = new Uri("sample.jpg", UriKind.Relative);
-            bmp.CacheOption = BitmapCacheOption.OnLoad; // 即時ロード
-            bmp.EndInit();
-            bmp.Freeze(); // 描画スレッド最適化
+            LibVLCSharp.Shared.Core.Initialize();
 
-            ImageView.Source = bmp;
-            */
+            // LibVLCとMediaPlayerの初期化
+            _libVLC = new LibVLCSharp.Shared.LibVLC();
+            _mediaPlayer = new LibVLCSharp.Shared.MediaPlayer(_libVLC);
+            VideoView.MediaPlayer = _mediaPlayer;
+
+            // メディア終了時のイベント
+            _mediaPlayer.EndReached += MediaPlayer_EndReached;
+
+            // WebPアニメーションプレーヤーの初期化
+            _webPPlayer = new WebPAnimationPlayer();
+            _webPPlayer.FrameChanged += WebPPlayer_FrameChanged;
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+
+            // リソースの解放
+            _webPPlayer?.Stop();
+            _webPPlayer?.Dispose();
+            _mediaPlayer?.Stop();
+            _mediaPlayer?.Dispose();
+            _libVLC?.Dispose();
+        }
+
+        private void WebPPlayer_FrameChanged(object? sender, BitmapSource e)
+        {
+            ImageView.Source = e;
         }
 
         // D&D中のカーソル制御
@@ -46,59 +63,156 @@ namespace SimpleMediaViewer.Wpf
         }
 
         // ドロップ時処理
-        private void Window_Drop(object sender, DragEventArgs e)
+        private async void Window_Drop(object sender, DragEventArgs e)
         {
             if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
                 return;
+            }
 
             // 最初の1ファイルのみ使用
-            var path = ((string[])e.Data.GetData(DataFormats.FileDrop)!)
-                       .FirstOrDefault();
-
+            var path = ((string[])e.Data.GetData(DataFormats.FileDrop)!).FirstOrDefault();
             if (path == null || !File.Exists(path))
+            {
                 return;
+            }
 
             // 既存再生停止
-            VideoView.Stop();
-            VideoView.Source = null;
+            _webPPlayer?.Stop();
+            _mediaPlayer?.Stop();
 
-            // 動画として設定（画像も MediaElement で表示可能）
-            VideoView.Source = new Uri(path, UriKind.Absolute);
-            VideoView.Play();
+            _currentFilePath = path;
+
+            // ファイル拡張子チェック
+            var extension = Path.GetExtension(path).ToLowerInvariant();
+            if (extension == ".webp")
+            {
+                // WebPファイルの場合はImageSharpで処理
+                await LoadWebPAsync(path);
+            }
+            else if (IsImageFile(extension))
+            {
+                // 静止画の場合
+                LoadStaticImage(path);
+            }
+            else
+            {
+                // 動画の場合はLibVLCで処理
+                LoadVideo(path);
+            }
+        }
+
+        private async Task LoadWebPAsync(string path)
+        {
+            try
+            {
+                await _webPPlayer!.LoadAsync(path);
+
+                // ビューの表示切り替え
+                VideoViewbox.Visibility = Visibility.Collapsed;
+                ImageViewbox.Visibility = Visibility.Visible;
+
+                // アニメーションフレームが複数ある場合は自動再生
+                if (_webPPlayer.FrameCount > 1)
+                {
+                    _webPPlayer.Play(loop: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"WebP読み込みエラー: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void LoadStaticImage(string path)
+        {
+            try
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(path);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.EndInit();
+                bmp.Freeze();
+
+                ImageView.Source = bmp;
+
+                // ビューの表示切り替え
+                VideoViewbox.Visibility = Visibility.Collapsed;
+                ImageViewbox.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"画像読み込みエラー: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void LoadVideo(string path)
+        {
+            try
+            {
+                var media = new LibVLCSharp.Shared.Media(_libVLC, new Uri(path));
+
+                // ビューの表示切り替え
+                ImageViewbox.Visibility = Visibility.Collapsed;
+                VideoViewbox.Visibility = Visibility.Visible;
+
+                _mediaPlayer?.Play(media);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"動画読み込みエラー: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private bool IsImageFile(string extension)
+        {
+            var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff" };
+            return imageExtensions.Contains(extension);
         }
 
         // ウィンドウいっぱいに表示（アスペクト比維持）
         private void Fit_Click(object sender, RoutedEventArgs e)
         {
-            ImageView.Stretch = System.Windows.Media.Stretch.Uniform;
-            VideoView.Stretch = System.Windows.Media.Stretch.Uniform;
+            ImageViewbox.Stretch = System.Windows.Media.Stretch.Uniform;
+            VideoViewbox.Stretch = System.Windows.Media.Stretch.Uniform;
         }
 
         // 等倍表示（1:1ピクセル）
         private void Original_Click(object sender, RoutedEventArgs e)
         {
-            ImageView.Stretch = System.Windows.Media.Stretch.None;
-            VideoView.Stretch = System.Windows.Media.Stretch.None;
+            ImageViewbox.Stretch = System.Windows.Media.Stretch.None;
+            VideoViewbox.Stretch = System.Windows.Media.Stretch.None;
         }
 
         // 再生
         private void Play_Click(object sender, RoutedEventArgs e)
         {
-            VideoView.Play();
+            if (_webPPlayer?.IsPlaying == false && ImageViewbox.Visibility == Visibility.Visible)
+            {
+                _webPPlayer?.Resume();
+            }
+            else
+            {
+                _mediaPlayer?.Play();
+            }
         }
 
         // 停止
         private void Stop_Click(object sender, RoutedEventArgs e)
         {
-            VideoView.Stop();
+            _webPPlayer?.Stop();
+            _mediaPlayer?.Stop();
         }
 
-
         // 再生終了時に自動ループ
-        private void VideoView_MediaEnded(object sender, RoutedEventArgs e)
+        private void MediaPlayer_EndReached(object? sender, EventArgs e)
         {
-            VideoView.Position = TimeSpan.Zero; // 先頭に戻す
-            VideoView.Play();                   // 再生再開
+            Dispatcher.Invoke(() =>
+            {
+                _mediaPlayer?.Stop();
+                _mediaPlayer?.Play();
+            });
         }
     }
 }

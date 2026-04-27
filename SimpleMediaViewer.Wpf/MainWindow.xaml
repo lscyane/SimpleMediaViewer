@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SimpleMediaViewer.Wpf"
+        xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
         mc:Ignorable="d"
         AllowDrop="True"
         Drop="Window_Drop"
@@ -24,25 +25,16 @@
         </StackPanel>
 
         <!-- 画像表示本体 -->
-        <ScrollViewer Grid.Row="1"
-                      HorizontalScrollBarVisibility="Auto"
-                      VerticalScrollBarVisibility="Auto">
-            <Grid>
-                <!-- 動画表示 -->
-                <Viewbox Grid.Row="1" Stretch="None">
-                    <MediaElement x:Name="VideoView"
-                          LoadedBehavior="Manual"
-                          UnloadedBehavior="Manual"
-                          Stretch="Uniform"
-                          RenderOptions.BitmapScalingMode="HighQuality"
-                          MediaEnded="VideoView_MediaEnded"/>
-                </Viewbox>
-                <!-- 静止画表示 -->
-                <Image x:Name="ImageView"
-                   Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="HighQuality"/>
-            </Grid>
+        <Grid x:Name="hostgrid" Grid.Row="1">
+            <!-- 動画表示 -->
+            <Viewbox Grid.Row="1" x:Name="VideoViewbox" Stretch="None" Visibility="Collapsed">
+                <vlc:VideoView x:Name="VideoView" Width="{Binding ElementName=hostgrid, Path=ActualWidth}" Height="{Binding ElementName=hostgrid, Path=ActualHeight}"/>
+            </Viewbox>
 
-        </ScrollViewer>
+            <!-- 静止画/WebPアニメーション表示 -->
+            <Viewbox x:Name="ImageViewbox" Stretch="Uniform">
+                <Image x:Name="ImageView" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality"/>
+            </Viewbox>
+        </Grid>
     </Grid>
 </Window>

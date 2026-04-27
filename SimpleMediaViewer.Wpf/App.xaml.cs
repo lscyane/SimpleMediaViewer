@@ -1,6 +1,7 @@
 ﻿using System.Configuration;
 using System.Data;
 using System.Windows;
+using LibVLCSharp.Shared;
 
 namespace SimpleMediaViewer.Wpf
 {
@@ -9,6 +10,14 @@ namespace SimpleMediaViewer.Wpf
     /// </summary>
     public partial class App : Application
     {
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            base.OnStartup(e);
+
+            // LibVLCSharpの初期化
+            Core.Initialize();
+        }
+
         private void Application_Startup(object sender, StartupEventArgs e)
         {
             // コマンドライン引数から動画パス取得
