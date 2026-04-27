@@ -11,29 +11,36 @@
         DragOver="Window_DragOver"
         Title="MainWindow" Height="450" Width="800">
     <Grid>
-        <!-- 表示モード切替用 -->
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <StackPanel Orientation="Horizontal" Margin="4">
-            <Button Content="ウィンドウいっぱい" Click="Fit_Click" Margin="0,0,8,0"/>
-            <Button Content="等倍表示" Click="Original_Click"/>
-            <Button Content="再生" Click="Play_Click" Margin="0,0,8,0"/>
-            <Button Content="停止" Click="Stop_Click"/>
+            <Button Content="ウィンドウいっぱい" Command="{Binding FitCommand}" Margin="0,0,8,0"/>
+            <Button Content="等倍表示" Command="{Binding OriginalCommand}"/>
+            <Button Content="再生" Command="{Binding PlayCommand}" Margin="8,0,8,0"/>
+            <Button Content="停止" Command="{Binding StopCommand}"/>
         </StackPanel>
 
-        <!-- 画像表示本体 -->
         <Grid x:Name="hostgrid" Grid.Row="1">
             <!-- 動画表示 -->
-            <Viewbox Grid.Row="1" x:Name="VideoViewbox" Stretch="None" Visibility="Collapsed">
-                <vlc:VideoView x:Name="VideoView" Width="{Binding ElementName=hostgrid, Path=ActualWidth}" Height="{Binding ElementName=hostgrid, Path=ActualHeight}"/>
+            <Viewbox Grid.Row="1" x:Name="VideoViewbox" 
+                     Stretch="{Binding VideoStretch}" 
+                     Visibility="{Binding VideoViewVisibility}">
+                <vlc:VideoView x:Name="VideoView" 
+                               Width="{Binding ElementName=hostgrid, Path=ActualWidth}" 
+                               Height="{Binding ElementName=hostgrid, Path=ActualHeight}"/>
             </Viewbox>
 
             <!-- 静止画/WebPアニメーション表示 -->
-            <Viewbox x:Name="ImageViewbox" Stretch="Uniform">
-                <Image x:Name="ImageView" Stretch="None" RenderOptions.BitmapScalingMode="HighQuality"/>
+            <Viewbox x:Name="ImageViewbox" 
+                     Stretch="{Binding ImageStretch}" 
+                     Visibility="{Binding ImageViewVisibility}">
+                <Image x:Name="ImageView" 
+                       Source="{Binding ImageSource}" 
+                       Stretch="None" 
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
             </Viewbox>
         </Grid>
     </Grid>
