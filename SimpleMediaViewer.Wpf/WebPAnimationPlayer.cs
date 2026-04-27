@@ -1,4 +1,5 @@
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO;
@@ -8,7 +9,7 @@ using System.Windows.Threading;
 namespace SimpleMediaViewer.Wpf;
 
 /// <summary>
-/// WebPアニメーション再生クラス
+/// WebPアニメーション再生クラス（高速化版）
 /// </summary>
 public class WebPAnimationPlayer : IDisposable
 {
@@ -16,6 +17,8 @@ public class WebPAnimationPlayer : IDisposable
     private DispatcherTimer? _timer;
     private int _currentFrameIndex = 0;
     private bool _isPlaying = false;
+    private BitmapSource?[] _cachedFrames = Array.Empty<BitmapSource>();
+    private bool _isFullyLoaded = false;
 
     public event EventHandler<BitmapSource>? FrameChanged;
     public event EventHandler? AnimationCompleted;
@@ -24,19 +27,87 @@ public class WebPAnimationPlayer : IDisposable
     public int FrameCount => _image?.Frames.Count ?? 0;
 
     /// <summary>
-    /// WebPファイルを読み込む
+    /// WebPファイルを高速読み込み
     /// </summary>
     public async Task LoadAsync(string filePath)
     {
         Stop();
         Dispose();
 
-        _image = await Image.LoadAsync<Bgra32>(filePath);
+        // ImageSharp Configurationでメモリアクセス最適化
+        var configuration = Configuration.Default.Clone();
+        configuration.PreferContiguousImageBuffers = true;
+
+        // FileStreamの最適化：大きなバッファサイズでシーケンシャル読み込み
+        using var fileStream = new FileStream(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 80 * 1024, // 80KB バッファ
+            useAsync: true);
+
+        // DecoderOptionsでConfigurationを指定
+        var decoderOptions = new DecoderOptions
+        {
+            Configuration = configuration
+        };
+
+        // 画像読み込み
+        _image = await Image.LoadAsync<Bgra32>(decoderOptions, fileStream);
         _currentFrameIndex = 0;
+
+        // フレームキャッシュの初期化
+        _cachedFrames = new BitmapSource?[_image.Frames.Count];
+        _isFullyLoaded = false;
 
         // タイマーの初期化
         _timer = new DispatcherTimer();
         _timer.Tick += Timer_Tick;
+
+        // 最初のフレームを即座にキャッシュ（表示のため）
+        if (_image.Frames.Count > 0)
+        {
+            _cachedFrames[0] = ConvertToBitmapSource(_image.Frames[0]);
+        }
+
+        // バックグラウンドで残りのフレームをキャッシュ
+        if (_image.Frames.Count > 1)
+        {
+            _ = Task.Run(() => CacheAllFramesAsync());
+        }
+        else
+        {
+            _isFullyLoaded = true;
+        }
+    }
+
+    /// <summary>
+    /// 全フレームを事前キャッシュ（バックグラウンド処理）
+    /// </summary>
+    private async Task CacheAllFramesAsync()
+    {
+        await Task.Yield(); // UIスレッドに制御を戻す
+
+        if (_image == null) return;
+
+        // 2フレーム目以降を順次キャッシュ
+        for (int i = 1; i < _image.Frames.Count; i++)
+        {
+            if (_image == null) break; // 途中でDisposeされた場合
+
+            var frame = _image.Frames[i];
+            var bitmapSource = ConvertToBitmapSource(frame);
+            _cachedFrames[i] = bitmapSource;
+
+            // 定期的にUIスレッドに制御を返す
+            if (i % 10 == 0)
+            {
+                await Task.Delay(1);
+            }
+        }
+
+        _isFullyLoaded = true;
     }
 
     /// <summary>
@@ -119,8 +190,14 @@ public class WebPAnimationPlayer : IDisposable
         if (_image == null || _currentFrameIndex >= _image.Frames.Count)
             return;
 
-        var frame = _image.Frames[_currentFrameIndex];
-        var bitmapSource = ConvertToBitmapSource(frame);
+        // キャッシュがあればそれを使用、なければその場でデコード
+        var bitmapSource = _cachedFrames[_currentFrameIndex];
+        if (bitmapSource == null)
+        {
+            var frame = _image.Frames[_currentFrameIndex];
+            bitmapSource = ConvertToBitmapSource(frame);
+            _cachedFrames[_currentFrameIndex] = bitmapSource;
+        }
 
         FrameChanged?.Invoke(this, bitmapSource);
     }
@@ -166,5 +243,7 @@ public class WebPAnimationPlayer : IDisposable
         _timer = null;
         _image?.Dispose();
         _image = null;
+        _cachedFrames = Array.Empty<BitmapSource>();
+        _isFullyLoaded = false;
     }
 }
