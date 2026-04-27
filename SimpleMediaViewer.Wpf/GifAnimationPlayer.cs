@@ -1,6 +1,7 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Gif;
+using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -10,7 +11,7 @@ using System.Windows.Threading;
 namespace SimpleMediaViewer.Wpf;
 
 /// <summary>
-/// GIFアニメーション再生クラス
+/// GIF/APNGアニメーション再生クラス
 /// </summary>
 public class GifAnimationPlayer : IDisposable
 {
@@ -21,6 +22,7 @@ public class GifAnimationPlayer : IDisposable
     private BitmapSource?[] _cachedFrames = Array.Empty<BitmapSource>();
     private int[] _frameDelays = Array.Empty<int>();
     private bool _isFullyLoaded = false;
+    private bool _isPng = false;
 
     public event EventHandler<BitmapSource>? FrameChanged;
     public event EventHandler? AnimationCompleted;
@@ -29,7 +31,7 @@ public class GifAnimationPlayer : IDisposable
     public int FrameCount => _image?.Frames.Count ?? 0;
 
     /// <summary>
-    /// GIFファイルを読み込み
+    /// GIF/APNGファイルを読み込み
     /// </summary>
     public async Task LoadAsync(string filePath)
     {
@@ -50,20 +52,54 @@ public class GifAnimationPlayer : IDisposable
         var decoderOptions = new DecoderOptions { Configuration = configuration };
         _image = await Image.LoadAsync<Bgra32>(decoderOptions, fileStream);
 
+        // フォーマットを判定
+        _isPng = _image.Metadata.DecodedImageFormat is PngFormat;
+
         var frameCount = _image.Frames.Count;
         _cachedFrames = new BitmapSource[frameCount];
         _frameDelays = new int[frameCount];
 
         // 各フレームの遅延時間を取得
-        var gifMetadata = _image.Metadata.GetGifMetadata();
-        for (int i = 0; i < frameCount; i++)
+        if (_isPng)
         {
-            var frame = _image.Frames[i];
-            var frameMetadata = frame.Metadata.GetGifMetadata();
+            var pngMetadata = _image.Metadata.GetPngMetadata();
+            for (int i = 0; i < frameCount; i++)
+            {
+                var frame = _image.Frames[i];
+                var frameMetadata = frame.Metadata.GetPngMetadata();
 
-            // GIFのフレーム遅延は1/100秒単位、デフォルトは100ms
-            var delayInCentiseconds = frameMetadata.FrameDelay;
-            _frameDelays[i] = delayInCentiseconds > 0 ? delayInCentiseconds * 10 : 100;
+                // APNGのフレーム遅延は分子/分母で表現、デフォルトは100ms
+                if (frameMetadata.FrameDelay != null)
+                {
+                    var delayNumerator = frameMetadata.FrameDelay.Numerator;
+                    var delayDenominator = frameMetadata.FrameDelay.Denominator > 0 
+                        ? frameMetadata.FrameDelay.Denominator 
+                        : 100; // デフォルトは100分の1秒
+                    _frameDelays[i] = (int)((delayNumerator * 1000.0) / delayDenominator);
+                }
+                else
+                {
+                    _frameDelays[i] = 100; // デフォルト100ms
+                }
+
+                if (_frameDelays[i] == 0)
+                {
+                    _frameDelays[i] = 100; // 0の場合は100msに設定
+                }
+            }
+        }
+        else
+        {
+            var gifMetadata = _image.Metadata.GetGifMetadata();
+            for (int i = 0; i < frameCount; i++)
+            {
+                var frame = _image.Frames[i];
+                var frameMetadata = frame.Metadata.GetGifMetadata();
+
+                // GIFのフレーム遅延は1/100秒単位、デフォルトは100ms
+                var delayInCentiseconds = frameMetadata.FrameDelay;
+                _frameDelays[i] = delayInCentiseconds > 0 ? delayInCentiseconds * 10 : 100;
+            }
         }
 
         // 全フレームを事前にキャッシュ

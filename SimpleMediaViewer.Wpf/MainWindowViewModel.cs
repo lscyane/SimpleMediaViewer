@@ -150,7 +150,7 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         {
             await LoadWebPAsync(path);
         }
-        else if (extension == ".gif")
+        else if ((extension == ".gif") || (extension == ".png"))
         {
             await LoadGifAsync(path);
         }
