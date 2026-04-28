@@ -18,12 +18,15 @@ public class MediaPlayerService : IDisposable
     {
         _libVLC = new LibVLC();
         _mediaPlayer = new MediaPlayer(_libVLC);
+        _mediaPlayer.Volume = 0;
         _mediaPlayer.EndReached += OnEndReached;
     }
 
     public void Play(string filePath)
     {
         var media = new Media(_libVLC, new Uri(filePath));
+        media.AddOption(":input-repeat=65535");
+        _mediaPlayer.Volume = 0;
         _mediaPlayer.Play(media);
     }
 
