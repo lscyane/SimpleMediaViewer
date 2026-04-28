@@ -14,6 +14,8 @@ namespace SimpleMediaViewer.Wpf;
 /// </summary>
 public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 {
+    public FileManager FileManager { get; private set; } = new FileManager();
+
     private readonly MediaPlayerService _mediaPlayerService;
     private readonly WebPPlayerService _webPPlayerService;
     private readonly GifPlayerService _gifPlayerService;
@@ -132,6 +134,8 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         {
             return;
         }
+
+        FileManager.CurrentFilePath = path;
 
         // 既存再生停止
         _webPPlayerService.Stop();
