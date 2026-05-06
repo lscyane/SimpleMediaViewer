@@ -22,6 +22,19 @@
                     <MenuItem Header="次のファイル" Command="{Binding NextFileCommand}" InputGestureText="Right"/>
                     <Separator/>
                     <MenuItem Header="ファイルリストを表示" Command="{Binding ShowListDialogCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="並び順">
+                        <MenuItem Header="名前 (昇順)" Command="{Binding SetSortOrderCommand}" CommandParameter="0"/>
+                        <MenuItem Header="名前 (降順)" Command="{Binding SetSortOrderCommand}" CommandParameter="1"/>
+                        <Separator/>
+                        <MenuItem Header="更新日時 (昇順)" Command="{Binding SetSortOrderCommand}" CommandParameter="2"/>
+                        <MenuItem Header="更新日時 (降順)" Command="{Binding SetSortOrderCommand}" CommandParameter="3"/>
+                        <Separator/>
+                        <MenuItem Header="ファイルサイズ (昇順)" Command="{Binding SetSortOrderCommand}" CommandParameter="4"/>
+                        <MenuItem Header="ファイルサイズ (降順)" Command="{Binding SetSortOrderCommand}" CommandParameter="5"/>
+                        <Separator/>
+                        <MenuItem Header="ランダム" Command="{Binding SetSortOrderCommand}" CommandParameter="6"/>
+                    </MenuItem>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="表示">

@@ -358,4 +358,15 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     });
     private bool isShowingListDialog = false;
 
+    public RelayCommand<object> SetSortOrderCommand => field ??= new RelayCommand<object>(param =>
+    {
+        if (param != null && int.TryParse(param.ToString(), out int sortOrderValue))
+        {
+            if (Enum.IsDefined(typeof(FileSortOrder), sortOrderValue))
+            {
+                FileManager.SortOrder = (FileSortOrder)sortOrderValue;
+            }
+        }
+    });
+
 }

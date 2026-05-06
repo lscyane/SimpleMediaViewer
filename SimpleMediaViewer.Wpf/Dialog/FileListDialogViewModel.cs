@@ -10,7 +10,6 @@ namespace SimpleMediaViewer.Wpf;
 
 public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChanged
 {
-    private FileManager _fileManager = new FileManager();
     private ObservableCollection<string> _fileList = new ObservableCollection<string>();
     private int _selectedIndex = -1;
     private Action<string>? _onFileSelected;
@@ -18,30 +17,30 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
 
     public FileManager FileManager 
     { 
-        get => _fileManager;
+        get => field;
         private set
         {
-            if (_fileManager != value)
+            if (field != value)
             {
                 // 既存のイベントハンドラを解除
-                if (_fileManager != null)
+                if (field != null)
                 {
-                    _fileManager.PropertyChanged -= OnFileManagerPropertyChanged;
+                    field.PropertyChanged -= OnFileManagerPropertyChanged;
                 }
 
-                _fileManager = value;
+                field = value;
 
                 // 新しいイベントハンドラを登録
-                if (_fileManager != null)
+                if (field != null)
                 {
-                    _fileManager.PropertyChanged += OnFileManagerPropertyChanged;
+                    field.PropertyChanged += OnFileManagerPropertyChanged;
                 }
 
                 OnPropertyChanged();
                 UpdateFileList();
             }
         }
-    }
+    } = new FileManager();
 
     public ObservableCollection<string> FileList
     {
@@ -198,9 +197,9 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
     /// </summary>
     private void CleanupEventHandlers()
     {
-        if (_fileManager != null)
+        if (this.FileManager != null)
         {
-            _fileManager.PropertyChanged -= OnFileManagerPropertyChanged;
+            this.FileManager.PropertyChanged -= OnFileManagerPropertyChanged;
         }
     }
 }

@@ -5,8 +5,48 @@ using System.Text;
 
 namespace SimpleMediaViewer.Wpf;
 
+/// <summary>
+/// ファイルの並び順
+/// </summary>
+public enum FileSortOrder
+{
+    /// <summary>名前 昇順</summary>
+    NameAscending,
+    /// <summary>名前 降順</summary>
+    NameDescending,
+    /// <summary>更新日時 昇順</summary>
+    DateAscending,
+    /// <summary>更新日時 降順</summary>
+    DateDescending,
+    /// <summary>ファイルサイズ 昇順</summary>
+    SizeAscending,
+    /// <summary>ファイルサイズ 降順</summary>
+    SizeDescending,
+    /// <summary> ランダム  </summary>
+    Random,
+}
+
+
 public class FileManager : ObservableObject
 {
+    private FileSortOrder _sortOrder = FileSortOrder.NameAscending;
+
+    /// <summary>
+    /// 現在のソート順
+    /// </summary>
+    public FileSortOrder SortOrder
+    {
+        get => _sortOrder;
+        set
+        {
+            if ((SetProperty(ref _sortOrder, value)) || (value == FileSortOrder.Random))
+            {
+                // ソート順が変更されたらファイルリストを再ソート
+                SortFileList();
+            }
+        }
+    }
+
     private string CurrentDirectory
     { 
         get;
@@ -24,6 +64,9 @@ public class FileManager : ObservableObject
                     this.CurrentFileList = System.IO.Directory.GetFiles(value)
                         .Where(file => supportedExtensions.Contains(System.IO.Path.GetExtension(file)))
                         .ToArray();
+
+                    // 取得後にソート
+                    SortFileList();
                 }
                 else
                 {
@@ -81,5 +124,31 @@ public class FileManager : ObservableObject
             return CurrentFileList[CurrentFileList.Length - 1];
         }
         return CurrentFileList[currentIndex - 1];
+    }
+
+    /// <summary>
+    /// ファイルリストをソートする
+    /// </summary>
+    private void SortFileList()
+    {
+        if (CurrentFileList.Length == 0)
+        {
+            return;
+        }
+
+        var sorted = SortOrder switch
+        {
+            FileSortOrder.NameAscending => CurrentFileList.OrderBy(f => System.IO.Path.GetFileName(f)).ToArray(),
+            FileSortOrder.NameDescending => CurrentFileList.OrderByDescending(f => System.IO.Path.GetFileName(f)).ToArray(),
+            FileSortOrder.DateAscending => CurrentFileList.OrderBy(f => System.IO.File.GetLastWriteTime(f)).ToArray(),
+            FileSortOrder.DateDescending => CurrentFileList.OrderByDescending(f => System.IO.File.GetLastWriteTime(f)).ToArray(),
+            FileSortOrder.SizeAscending => CurrentFileList.OrderBy(f => new System.IO.FileInfo(f).Length).ToArray(),
+            FileSortOrder.SizeDescending => CurrentFileList.OrderByDescending(f => new System.IO.FileInfo(f).Length).ToArray(),
+            FileSortOrder.Random => CurrentFileList.OrderBy(_ => Random.Shared.Next()).ToArray(),
+            _ => CurrentFileList
+        };
+
+        CurrentFileList = sorted;
+        OnPropertyChanged(nameof(CurrentFileList));
     }
 }
