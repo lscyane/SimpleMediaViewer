@@ -66,7 +66,7 @@ namespace SimpleMediaViewer.Wpf
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void Application_Startup(object sender, StartupEventArgs e)
+        private async void Application_Startup(object sender, StartupEventArgs e)
         {
             // NOTE: ロケールの指定(全ての他のスレッドが開始される前に呼ぶ必要がある)
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
@@ -88,9 +88,20 @@ namespace SimpleMediaViewer.Wpf
             Configuration appSettings = ConfigurationManager.OpenExeConfiguration(System.Configuration.ConfigurationUserLevel.PerUserRoamingAndLocal);
             // TODO // Models.DebugLog.Instance.WriteLine(Models.DebugLog.EType.Info, "user.config path: " + appSettings.FilePath);
 
-            // コマンドライン引数から動画パス取得
-            var filePath = e.Args.FirstOrDefault();
-            // TODO
+            // コマンドライン引数からファイルパス取得
+            var filePath = e.Args.FirstOrDefault(x => System.IO.File.Exists(x));
+
+            // MainWindowが作成された後に初期ファイルを読み込む
+            MainWindow ??= new MainWindow();
+            if (MainWindow is MainWindow mainWindow && !string.IsNullOrEmpty(filePath))
+            {
+                // ウィンドウが完全にロードされた後に実行
+                mainWindow.Loaded += async (s, args) =>
+                {
+                    await mainWindow.LoadInitialFileAsync(filePath);
+                };
+            }
+            MainWindow.Show();
         }
 
 

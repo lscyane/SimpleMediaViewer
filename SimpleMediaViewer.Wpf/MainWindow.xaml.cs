@@ -41,6 +41,19 @@ namespace SimpleMediaViewer.Wpf
         }
 
 
+        /// <summary>
+        /// 初期ファイルを読み込む
+        /// </summary>
+        /// <param name="filePath">ファイルパス</param>
+        public async Task LoadInitialFileAsync(string? filePath)
+        {
+            if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+            {
+                await _viewModel.ExecuteDropAsync(filePath);
+            }
+        }
+
+
         // D&D中のカーソル制御
         private void Window_DragOver(object sender, DragEventArgs e)
         {
