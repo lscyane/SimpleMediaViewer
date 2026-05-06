@@ -20,6 +20,8 @@
                 <MenuItem Header="リスト">
                     <MenuItem Header="前のファイル" Command="{Binding PreviousFileCommand}" InputGestureText="Left"/>
                     <MenuItem Header="次のファイル" Command="{Binding NextFileCommand}" InputGestureText="Right"/>
+                    <Separator/>
+                    <MenuItem Header="ファイルリストを表示" Command="{Binding ShowListDialogCommand}"/>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="表示">

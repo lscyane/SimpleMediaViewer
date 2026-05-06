@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using LibVLCSharp.Shared;
+using lscyane.Core.Mvvm;
 using SimpleMediaViewer.Wpf.Services;
 using System.ComponentModel;
 using System.IO;
@@ -20,6 +21,7 @@ public interface IMainWindowViewModel;
 /// </summary>
 public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisposable
 {
+    private readonly IDialogService _DialogService;
     public FileManager FileManager { get; private set; } = new FileManager();
 
     private readonly MediaPlayerService _mediaPlayerService;
@@ -95,8 +97,10 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     }
 
 
-    public MainWindowViewModel()
+    public MainWindowViewModel(IDialogService dialogService)
     {
+        this._DialogService = dialogService;
+
         _mediaPlayerService = new MediaPlayerService();
         _webPPlayerService = new WebPPlayerService();
         _gifPlayerService = new GifPlayerService();
@@ -332,4 +336,21 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
         _gifPlayerService?.Dispose();
         _mediaPlayerService?.Dispose();
     }
+
+
+    public RelayCommand ShowListDialogCommand => field ??= new RelayCommand(() =>
+    {
+        if (this.isShowingListDialog) return;
+
+        // FileListDialogを表示
+        this.isShowingListDialog = true;
+        var dialog = new DialogParameters();
+        dialog.Add("Title", "FileList");
+        dialog.Add("Manager", FileManager);
+        this._DialogService.Show(typeof(FileListDialogViewModel), dialog, (result, param) =>
+        {
+            this.isShowingListDialog = false;
+        });
+    });
+    private bool isShowingListDialog = false;
 }

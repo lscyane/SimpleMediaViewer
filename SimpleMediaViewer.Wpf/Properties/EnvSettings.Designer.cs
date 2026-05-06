@@ -82,5 +82,65 @@ namespace SimpleMediaViewer.Wpf.Properties {
                 this["WindowHeight"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("200")]
+        public double LeftSideMenuWidth {
+            get {
+                return ((double)(this["LeftSideMenuWidth"]));
+            }
+            set {
+                this["LeftSideMenuWidth"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("NaN")]
+        public double FileListDialogLeft {
+            get {
+                return ((double)(this["FileListDialogLeft"]));
+            }
+            set {
+                this["FileListDialogLeft"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("NaN")]
+        public double FileListDialogTop {
+            get {
+                return ((double)(this["FileListDialogTop"]));
+            }
+            set {
+                this["FileListDialogTop"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("300")]
+        public double FileListDialogWidth {
+            get {
+                return ((double)(this["FileListDialogWidth"]));
+            }
+            set {
+                this["FileListDialogWidth"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("600")]
+        public double FileListDialogHeight {
+            get {
+                return ((double)(this["FileListDialogHeight"]));
+            }
+            set {
+                this["FileListDialogHeight"] = value;
+            }
+        }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using LibVLCSharp.Shared;
+using lscyane.Wpf.Services;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -14,11 +15,15 @@ namespace SimpleMediaViewer.Wpf
 
         public MainWindow()
         {
+            // ダイアログサービスの設定
+            lscyane.Wpf.Services.DialogService.Main = new lscyane.Wpf.Services.DialogService(this);
+            lscyane.Wpf.Services.DialogService.Main.RegisterDialog<Dialog.FileListDialog, FileListDialogViewModel>();
+
             InitializeComponent();
             LibVLCSharp.Shared.Core.Initialize();
 
-            _viewModel = new MainWindowViewModel();
-            DataContext = _viewModel;
+            this._viewModel = new MainWindowViewModel(DialogService.Main);
+            this.DataContext = _viewModel;
 
             // VideoViewとMediaPlayerの接続
             VideoView.MediaPlayer = _viewModel.MediaPlayerService.Player;
