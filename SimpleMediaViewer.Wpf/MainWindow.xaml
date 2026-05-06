@@ -6,11 +6,12 @@
         xmlns:local="clr-namespace:SimpleMediaViewer.Wpf"
         xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
         mc:Ignorable="d"
+        Left="{Binding WindowLeft, Mode=TwoWay}" Top="{Binding WindowTop, Mode=TwoWay}" Width="{Binding WindowWidth, Mode=TwoWay}" Height="{Binding WindowHeight, Mode=TwoWay}"
         AllowDrop="True"
         Drop="Window_Drop"
         DragOver="Window_DragOver"
         KeyDown="Window_KeyDown"
-        Title="MainWindow" Height="450" Width="800">
+        Title="MainWindow">
     <Grid x:Name="hostgrid">
         
         <!-- コンテキストメニュー -->

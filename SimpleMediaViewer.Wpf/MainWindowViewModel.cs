@@ -1,18 +1,23 @@
-﻿using System.ComponentModel;
+﻿using LibVLCSharp.Shared;
+using SimpleMediaViewer.Wpf.Services;
+using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using SimpleMediaViewer.Wpf.Services;
 
 namespace SimpleMediaViewer.Wpf;
+
+
+public interface IMainWindowViewModel;
+
 
 /// <summary>
 /// MainWindowのViewModel
 /// </summary>
-public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
+public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged, IDisposable
 {
     public FileManager FileManager { get; private set; } = new FileManager();
 
@@ -37,6 +42,33 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     public ICommand DropCommand { get; }
     public ICommand NextFileCommand { get; }
     public ICommand PreviousFileCommand { get; }
+
+
+    #region Window位置・サイズ関係プロパティ
+    public double WindowLeft
+    {
+        get => Properties.EnvSettings.Default.WindowLeft;
+        set => Properties.EnvSettings.Default.WindowLeft = value;
+    }
+
+    public double WindowTop
+    {
+        get => Properties.EnvSettings.Default.WindowTop;
+        set => Properties.EnvSettings.Default.WindowTop = value;
+    }
+
+    public double WindowWidth
+    {
+        get => Properties.EnvSettings.Default.WindowWidth;
+        set => Properties.EnvSettings.Default.WindowWidth = value;
+    }
+
+    public double WindowHeight
+    {
+        get => Properties.EnvSettings.Default.WindowHeight;
+        set => Properties.EnvSettings.Default.WindowHeight = value;
+    }
+    #endregion
 
     // プロパティ
     public MediaPlayerService MediaPlayerService => _mediaPlayerService;
