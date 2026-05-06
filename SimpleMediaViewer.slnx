@@ -1,3 +1,5 @@
 <Solution>
+  <Project Path="lscyane.Wpf/lscyane.Core/lscyane.Core/lscyane.Core.csproj" />
+  <Project Path="lscyane.Wpf/lscyane.Wpf/lscyane.Wpf.csproj" />
   <Project Path="SimpleMediaViewer.Wpf/SimpleMediaViewer.Wpf.csproj" Id="aa18e721-9cc0-4755-885f-38bb8b465c7a" />
 </Solution>
