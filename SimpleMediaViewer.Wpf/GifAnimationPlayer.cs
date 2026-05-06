@@ -22,7 +22,8 @@ public class GifAnimationPlayer : IDisposable
     private BitmapSource?[] _cachedFrames = Array.Empty<BitmapSource>();
     private int[] _frameDelays = Array.Empty<int>();
     private bool _isFullyLoaded = false;
-    private bool _isPng = false;
+    private CancellationTokenSource? _loadCancellation;
+    private Task? _currentLoadTask;
 
     public event EventHandler<BitmapSource>? FrameChanged;
     public event EventHandler? AnimationCompleted;
@@ -30,13 +31,24 @@ public class GifAnimationPlayer : IDisposable
     public bool IsPlaying => _isPlaying;
     public int FrameCount => _image?.Frames.Count ?? 0;
 
+
     /// <summary>
     /// GIF/APNGファイルを読み込み
     /// </summary>
     public async Task LoadAsync(string filePath)
     {
+        // 前回の読み込みをキャンセルして完了を待つ
+        _loadCancellation?.Cancel();
+        if (_currentLoadTask != null)
+        {
+            await _currentLoadTask;
+        }
+
         Stop();
         Dispose();
+
+        _loadCancellation = new CancellationTokenSource();
+        var cancellationToken = _loadCancellation.Token;
 
         var configuration = Configuration.Default.Clone();
         configuration.PreferContiguousImageBuffers = true;
@@ -50,67 +62,71 @@ public class GifAnimationPlayer : IDisposable
             useAsync: true);
 
         var decoderOptions = new DecoderOptions { Configuration = configuration };
-        _image = await Image.LoadAsync<Bgra32>(decoderOptions, fileStream);
+        var loadedImage = await Image.LoadAsync<Bgra32>(decoderOptions, fileStream, cancellationToken);
+
+        // キャンセルチェック
+        cancellationToken.ThrowIfCancellationRequested();
 
         // フォーマットを判定
-        _isPng = _image.Metadata.DecodedImageFormat is PngFormat;
+        var isPng = loadedImage.Metadata.DecodedImageFormat is PngFormat;
 
-        var frameCount = _image.Frames.Count;
-        _cachedFrames = new BitmapSource[frameCount];
-        _frameDelays = new int[frameCount];
+        var frameCount = loadedImage.Frames.Count;
+        var cachedFrames = new BitmapSource[frameCount];
+        var frameDelays = new int[frameCount];
 
         // 各フレームの遅延時間を取得
-        if (_isPng)
+        if (isPng)
         {
-            var pngMetadata = _image.Metadata.GetPngMetadata();
+            // APNGの場合
+            var pngMetadata = loadedImage.Metadata.GetPngMetadata();
             for (int i = 0; i < frameCount; i++)
             {
-                var frame = _image.Frames[i];
+                var frame = loadedImage.Frames[i];
                 var frameMetadata = frame.Metadata.GetPngMetadata();
 
-                // APNGのフレーム遅延は分子/分母で表現、デフォルトは100ms
-                if (frameMetadata.FrameDelay != null)
-                {
-                    var delayNumerator = frameMetadata.FrameDelay.Numerator;
-                    var delayDenominator = frameMetadata.FrameDelay.Denominator > 0 
-                        ? frameMetadata.FrameDelay.Denominator 
-                        : 100; // デフォルトは100分の1秒
-                    _frameDelays[i] = (int)((delayNumerator * 1000.0) / delayDenominator);
-                }
-                else
-                {
-                    _frameDelays[i] = 100; // デフォルト100ms
-                }
+                var delayNumerator = frameMetadata.FrameDelay.Numerator;
+                var delayDenominator = (frameMetadata.FrameDelay.Denominator > 0) ? frameMetadata.FrameDelay.Denominator : 100;
+                frameDelays[i] = (int)((delayNumerator * 1000.0) / delayDenominator);
 
-                if (_frameDelays[i] == 0)
+                if (frameDelays[i] == 0)
                 {
-                    _frameDelays[i] = 100; // 0の場合は100msに設定
+                    frameDelays[i] = 100;
                 }
             }
         }
         else
         {
-            var gifMetadata = _image.Metadata.GetGifMetadata();
+            // GIFの場合
+            var gifMetadata = loadedImage.Metadata.GetGifMetadata();
             for (int i = 0; i < frameCount; i++)
             {
-                var frame = _image.Frames[i];
+                var frame = loadedImage.Frames[i];
                 var frameMetadata = frame.Metadata.GetGifMetadata();
 
-                // GIFのフレーム遅延は1/100秒単位、デフォルトは100ms
                 var delayInCentiseconds = frameMetadata.FrameDelay;
-                _frameDelays[i] = delayInCentiseconds > 0 ? delayInCentiseconds * 10 : 100;
+                frameDelays[i] = delayInCentiseconds > 0 ? delayInCentiseconds * 10 : 100;
             }
         }
 
-        // 全フレームを事前にキャッシュ
-        await Task.Run(() =>
+        // 全フレームを事前にキャッシュ（ローカル変数を使用）
+        _currentLoadTask = Task.Run(() =>
         {
             for (int i = 0; i < frameCount; i++)
             {
-                _cachedFrames[i] = ConvertToBitmapSource(_image.Frames[i]);
+                cancellationToken.ThrowIfCancellationRequested();
+                cachedFrames[i] = ConvertToBitmapSource(loadedImage.Frames[i]);
             }
-        });
+        }, cancellationToken);
 
+        await _currentLoadTask;
+
+        // キャンセルチェック
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // すべて成功したらフィールドに代入
+        _image = loadedImage;
+        _cachedFrames = cachedFrames;
+        _frameDelays = frameDelays;
         _isFullyLoaded = true;
         _currentFrameIndex = 0;
 
@@ -119,6 +135,8 @@ public class GifAnimationPlayer : IDisposable
         {
             FrameChanged?.Invoke(this, _cachedFrames[0]!);
         }
+
+        _currentLoadTask = null;
     }
 
     /// <summary>
@@ -216,13 +234,19 @@ public class GifAnimationPlayer : IDisposable
     {
         var width = frame.Width;
         var height = frame.Height;
+        var byteCount = width * height * 4;
+        var byteArray = new byte[byteCount];
 
-        if (!frame.DangerousTryGetSinglePixelMemory(out var pixelMemory))
+        frame.ProcessPixelRows(accessor =>
         {
-            throw new InvalidOperationException("フレームのメモリ取得に失敗しました");
-        }
-
-        var byteArray = MemoryMarshal.AsBytes(pixelMemory.Span).ToArray();
+            var destSpan = byteArray.AsSpan();
+            for (int y = 0; y < accessor.Height; y++)
+            {
+                var rowSpan = accessor.GetRowSpan(y);
+                var rowBytes = MemoryMarshal.AsBytes(rowSpan);
+                rowBytes.CopyTo(destSpan.Slice(y * width * 4, width * 4));
+            }
+        });
 
         var bitmap = BitmapSource.Create(
             width,
@@ -238,9 +262,15 @@ public class GifAnimationPlayer : IDisposable
         return bitmap;
     }
 
+    /// <summary>
+    /// リソースを解放
+    /// </summary>
     public void Dispose()
     {
         Stop();
+        _loadCancellation?.Cancel();
+        _loadCancellation?.Dispose();
+        _loadCancellation = null;
         _image?.Dispose();
         _image = null;
         _cachedFrames = Array.Empty<BitmapSource>();

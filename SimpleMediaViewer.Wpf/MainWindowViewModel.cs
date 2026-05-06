@@ -279,9 +279,13 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
                 _gifPlayerService.Play(loop: true);
             }
         }
+        catch (OperationCanceledException)
+        {
+            // 読み込みがキャンセルされた場合は無視
+        }
         catch (Exception ex)
         {
-            MessageBox.Show($"GIF読み込みエラー: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"GIF/PNG読み込みエラー: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
