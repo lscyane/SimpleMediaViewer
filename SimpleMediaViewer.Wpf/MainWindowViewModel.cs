@@ -1,4 +1,5 @@
-﻿using LibVLCSharp.Shared;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using LibVLCSharp.Shared;
 using SimpleMediaViewer.Wpf.Services;
 using System.ComponentModel;
 using System.IO;
@@ -17,7 +18,7 @@ public interface IMainWindowViewModel;
 /// <summary>
 /// MainWindowのViewModel
 /// </summary>
-public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged, IDisposable
+public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisposable
 {
     public FileManager FileManager { get; private set; } = new FileManager();
 
@@ -32,16 +33,6 @@ public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged,
     private BitmapSource? _imageSource;
     private bool _isGifPlaying = false;
     private bool _isWebPPlaying = false;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    // コマンド
-    public ICommand FitCommand { get; }
-    public ICommand OriginalCommand { get; }
-    public ICommand PlayPauseCommand { get; }
-    public ICommand DropCommand { get; }
-    public ICommand NextFileCommand { get; }
-    public ICommand PreviousFileCommand { get; }
 
 
     #region Window位置・サイズ関係プロパティ
@@ -103,6 +94,7 @@ public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged,
         set => SetProperty(ref _imageSource, value);
     }
 
+
     public MainWindowViewModel()
     {
         _mediaPlayerService = new MediaPlayerService();
@@ -114,29 +106,23 @@ public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged,
 
         // GIFフレーム変更イベント
         _gifPlayerService.FrameChanged += (s, e) => ImageSource = e;
-
-        // コマンドの初期化
-        FitCommand = new RelayCommand(ExecuteFit);
-        OriginalCommand = new RelayCommand(ExecuteOriginal);
-        PlayPauseCommand = new RelayCommand(ExecutePlayPause);
-        DropCommand = new RelayCommand<string>(async (path) => await ExecuteDropAsync(path));
-        NextFileCommand = new RelayCommand(async () => await ExecuteNextFileAsync());
-        PreviousFileCommand = new RelayCommand(async () => await ExecutePreviousFileAsync());
     }
 
-    private void ExecuteFit()
+
+    // コマンド
+    public RelayCommand FitCommand => field ??= new RelayCommand(() =>
     {
         ImageStretch = Stretch.Uniform;
         VideoStretch = Stretch.Uniform;
-    }
+    });
 
-    private void ExecuteOriginal()
+    public RelayCommand OriginalCommand => field ??= new RelayCommand(() =>
     {
         ImageStretch = Stretch.None;
         VideoStretch = Stretch.None;
-    }
+    });
 
-    private void ExecutePlayPause()
+    public RelayCommand PlayPauseCommand => field ??= new RelayCommand(() =>
     {
         if (ImageViewVisibility == Visibility.Visible)
         {
@@ -177,25 +163,31 @@ public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged,
                 _mediaPlayerService.Play();
             }
         }
-    }
+    });
 
-    private async Task ExecuteNextFileAsync()
+    public RelayCommand<string> DropCommand => field ??= new RelayCommand<string>(async path =>
+    {
+        await ExecuteDropAsync(path);
+    });
+
+    public RelayCommand NextFileCommand => field ??= new RelayCommand(async () =>
     {
         var nextFile = FileManager.GetNextFile();
         if (!string.IsNullOrEmpty(nextFile))
         {
             await ExecuteDropAsync(nextFile);
         }
-    }
+    });
 
-    private async Task ExecutePreviousFileAsync()
+    public RelayCommand PreviousFileCommand => field ??= new RelayCommand(async () =>
     {
         var previousFile = FileManager.GetPreviousFile();
         if (!string.IsNullOrEmpty(previousFile))
         {
             await ExecuteDropAsync(previousFile);
         }
-    }
+    });
+
 
     public async Task ExecuteDropAsync(string? path)
     {
@@ -237,6 +229,7 @@ public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged,
         }
     }
 
+
     private async Task LoadWebPAsync(string path)
     {
         try
@@ -259,6 +252,7 @@ public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged,
             MessageBox.Show($"WebP読み込みエラー: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
+
 
     private async Task LoadGifAsync(string path)
     {
@@ -283,6 +277,7 @@ public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged,
         }
     }
 
+
     private void LoadStaticImage(string path)
     {
         try
@@ -306,6 +301,7 @@ public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged,
         }
     }
 
+
     private void LoadVideo(string path)
     {
         try
@@ -322,28 +318,13 @@ public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged,
         }
     }
 
+
     private bool IsImageFile(string extension)
     {
         var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".tiff" };
         return imageExtensions.Contains(extension);
     }
 
-    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-
-    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
-    {
-        if (EqualityComparer<T>.Default.Equals(field, value))
-        {
-            return false;
-        }
-
-        field = value;
-        OnPropertyChanged(propertyName);
-        return true;
-    }
 
     public void Dispose()
     {
