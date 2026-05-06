@@ -14,6 +14,7 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
     private ObservableCollection<string> _fileList = new ObservableCollection<string>();
     private int _selectedIndex = -1;
     private Action<string>? _onFileSelected;
+    private bool _isUpdatingSelection = false;
 
     public FileManager FileManager 
     { 
@@ -22,7 +23,20 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
         {
             if (_fileManager != value)
             {
+                // 既存のイベントハンドラを解除
+                if (_fileManager != null)
+                {
+                    _fileManager.PropertyChanged -= OnFileManagerPropertyChanged;
+                }
+
                 _fileManager = value;
+
+                // 新しいイベントハンドラを登録
+                if (_fileManager != null)
+                {
+                    _fileManager.PropertyChanged += OnFileManagerPropertyChanged;
+                }
+
                 OnPropertyChanged();
                 UpdateFileList();
             }
@@ -51,16 +65,44 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
             {
                 _selectedIndex = value;
                 OnPropertyChanged();
-                OnSelectedIndexChanged();
+
+                // FileManager側の変更による更新の場合は、コールバックを呼ばない
+                if (!_isUpdatingSelection)
+                {
+                    OnSelectedIndexChanged();
+                }
             }
         }
     }
 
     public new event PropertyChangedEventHandler? PropertyChanged;
 
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    private new void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private void OnFileManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(FileManager.CurrentFilePath))
+        {
+            UpdateSelectedIndex();
+        }
+    }
+
+    private void UpdateSelectedIndex()
+    {
+        var currentFile = FileManager.CurrentFilePath;
+        if (!string.IsNullOrEmpty(currentFile))
+        {
+            var index = Array.IndexOf(FileManager.CurrentFileList, currentFile);
+            if (index >= 0 && index != SelectedIndex)
+            {
+                _isUpdatingSelection = true;
+                SelectedIndex = index;
+                _isUpdatingSelection = false;
+            }
+        }
     }
 
     private void UpdateFileList()
@@ -72,15 +114,7 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
         }
 
         // 現在のファイルを選択状態にする
-        var currentFile = FileManager.CurrentFilePath;
-        if (!string.IsNullOrEmpty(currentFile))
-        {
-            var index = Array.IndexOf(FileManager.CurrentFileList, currentFile);
-            if (index >= 0)
-            {
-                SelectedIndex = index;
-            }
-        }
+        UpdateSelectedIndex();
     }
 
     private void OnSelectedIndexChanged()
@@ -142,7 +176,11 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
     /// キャンセルボタン
     /// </summary>
     /// <remarks> 閉じるボタンと同じ挙動にするには、ここでは何も処理せず呼び出し元のResultで処理することを検討 </remarks>
-    public RelayCommand<object> CancelCommand => field ??= new RelayCommand<object>(e => this.OnRequestClose());
+    public RelayCommand<object> CancelCommand => field ??= new RelayCommand<object>(e => 
+    {
+        CleanupEventHandlers();
+        this.OnRequestClose();
+    });
 
 
     /// <summary>
@@ -150,8 +188,20 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
     /// </summary>
     public RelayCommand<object> OkCommand => field ??= new RelayCommand<object>(e =>
     {
+        CleanupEventHandlers();
         var retval = new DialogParameters();
         this.OnRequestClose(true, retval);
     });
+
+    /// <summary>
+    /// イベントハンドラのクリーンアップ
+    /// </summary>
+    private void CleanupEventHandlers()
+    {
+        if (_fileManager != null)
+        {
+            _fileManager.PropertyChanged -= OnFileManagerPropertyChanged;
+        }
+    }
 }
 

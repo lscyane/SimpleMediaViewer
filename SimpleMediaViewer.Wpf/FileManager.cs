@@ -1,19 +1,20 @@
-﻿using System;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace SimpleMediaViewer.Wpf;
 
-public class FileManager
+public class FileManager : ObservableObject
 {
-    private string CurrentDirectory 
+    private string CurrentDirectory
     { 
         get;
         set
         {
             if (value != field)
             {
-                field = value;
+                // カレントディレクトリが変更された場合、ファイルリストを更新
                 if (System.IO.Directory.Exists(value))
                 {
                     var supportedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -28,6 +29,8 @@ public class FileManager
                 {
                     this.CurrentFileList = Array.Empty<string>();
                 }
+
+                SetProperty(ref field, value);
             }
         }
     } = string.Empty;
@@ -37,18 +40,17 @@ public class FileManager
         get;
         set
         {
+            // カレントファイルが変更された場合、カレントディレクトリも更新
             var dir = System.IO.Path.GetDirectoryName(value);
             if (dir != this.CurrentDirectory)
             {
                 this.CurrentDirectory = dir ?? string.Empty;
             }
 
-            if (value != field)
-            {
-                field = value;
-            }
+            SetProperty(ref field, value);
         }
     } = string.Empty;
+
 
     public string[] CurrentFileList { get; private set; } = Array.Empty<string>();
 
