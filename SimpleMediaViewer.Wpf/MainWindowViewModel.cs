@@ -36,6 +36,8 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     public ICommand PlayCommand { get; }
     public ICommand StopCommand { get; }
     public ICommand DropCommand { get; }
+    public ICommand NextFileCommand { get; }
+    public ICommand PreviousFileCommand { get; }
 
     // プロパティ
     public MediaPlayerService MediaPlayerService => _mediaPlayerService;
@@ -88,6 +90,8 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         PlayCommand = new RelayCommand(ExecutePlay);
         StopCommand = new RelayCommand(ExecuteStop);
         DropCommand = new RelayCommand<string>(async (path) => await ExecuteDropAsync(path));
+        NextFileCommand = new RelayCommand(async () => await ExecuteNextFileAsync());
+        PreviousFileCommand = new RelayCommand(async () => await ExecutePreviousFileAsync());
     }
 
     private void ExecuteFit()
@@ -126,6 +130,24 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         _webPPlayerService.Stop();
         _gifPlayerService.Stop();
         _mediaPlayerService.Stop();
+    }
+
+    private async Task ExecuteNextFileAsync()
+    {
+        var nextFile = FileManager.GetNextFile();
+        if (!string.IsNullOrEmpty(nextFile))
+        {
+            await ExecuteDropAsync(nextFile);
+        }
+    }
+
+    private async Task ExecutePreviousFileAsync()
+    {
+        var previousFile = FileManager.GetPreviousFile();
+        if (!string.IsNullOrEmpty(previousFile))
+        {
+            await ExecuteDropAsync(previousFile);
+        }
     }
 
     public async Task ExecuteDropAsync(string? path)

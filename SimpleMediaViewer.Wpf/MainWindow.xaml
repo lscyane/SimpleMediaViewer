@@ -9,6 +9,7 @@
         AllowDrop="True"
         Drop="Window_Drop"
         DragOver="Window_DragOver"
+        KeyDown="Window_KeyDown"
         Title="MainWindow" Height="450" Width="800">
     <Grid>
         <Grid.RowDefinitions>

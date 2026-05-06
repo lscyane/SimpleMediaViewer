@@ -1,6 +1,7 @@
 ﻿using LibVLCSharp.Shared;
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 
 namespace SimpleMediaViewer.Wpf
 {
@@ -49,6 +50,21 @@ namespace SimpleMediaViewer.Wpf
 
             var path = ((string[])e.Data.GetData(DataFormats.FileDrop)!).FirstOrDefault();
             await _viewModel.ExecuteDropAsync(path);
+        }
+
+        // キーボード操作
+        private void Window_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Right)
+            {
+                _viewModel.NextFileCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Left)
+            {
+                _viewModel.PreviousFileCommand.Execute(null);
+                e.Handled = true;
+            }
         }
     }
 }
