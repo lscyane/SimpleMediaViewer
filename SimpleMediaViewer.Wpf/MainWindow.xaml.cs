@@ -65,6 +65,11 @@ namespace SimpleMediaViewer.Wpf
                 _viewModel.PreviousFileCommand.Execute(null);
                 e.Handled = true;
             }
+            else if (e.Key == Key.Space)
+            {
+                _viewModel.PlayPauseCommand.Execute(null);
+                e.Handled = true;
+            }
         }
     }
 }

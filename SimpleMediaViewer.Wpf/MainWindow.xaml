@@ -11,38 +11,38 @@
         DragOver="Window_DragOver"
         KeyDown="Window_KeyDown"
         Title="MainWindow" Height="450" Width="800">
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+    <Grid x:Name="hostgrid">
+        
+        <!-- コンテキストメニュー -->
+        <Grid.ContextMenu>
+            <ContextMenu>
+                <MenuItem Header="ウィンドウいっぱい" Command="{Binding FitCommand}"/>
+                <MenuItem Header="等倍表示" Command="{Binding OriginalCommand}"/>
+                <Separator/>
+                <MenuItem Header="再生/一時停止" Command="{Binding PlayPauseCommand}" InputGestureText="Space"/>
+                <Separator/>
+                <MenuItem Header="次のファイル" Command="{Binding NextFileCommand}" InputGestureText="→"/>
+                <MenuItem Header="前のファイル" Command="{Binding PreviousFileCommand}" InputGestureText="←"/>
+            </ContextMenu>
+        </Grid.ContextMenu>
 
-        <StackPanel Orientation="Horizontal" Margin="4">
-            <Button Content="ウィンドウいっぱい" Command="{Binding FitCommand}" Margin="0,0,8,0"/>
-            <Button Content="等倍表示" Command="{Binding OriginalCommand}"/>
-            <Button Content="再生" Command="{Binding PlayCommand}" Margin="8,0,8,0"/>
-            <Button Content="停止" Command="{Binding StopCommand}"/>
-        </StackPanel>
+        <!-- 動画表示 -->
+        <Viewbox x:Name="VideoViewbox" 
+                 Stretch="{Binding VideoStretch}" 
+                 Visibility="{Binding VideoViewVisibility}">
+            <vlc:VideoView x:Name="VideoView" 
+                           Width="{Binding ElementName=hostgrid, Path=ActualWidth}" 
+                           Height="{Binding ElementName=hostgrid, Path=ActualHeight}"/>
+        </Viewbox>
 
-        <Grid x:Name="hostgrid" Grid.Row="1">
-            <!-- 動画表示 -->
-            <Viewbox Grid.Row="1" x:Name="VideoViewbox" 
-                     Stretch="{Binding VideoStretch}" 
-                     Visibility="{Binding VideoViewVisibility}">
-                <vlc:VideoView x:Name="VideoView" 
-                               Width="{Binding ElementName=hostgrid, Path=ActualWidth}" 
-                               Height="{Binding ElementName=hostgrid, Path=ActualHeight}"/>
-            </Viewbox>
-
-            <!-- 静止画/WebPアニメーション表示 -->
-            <Viewbox x:Name="ImageViewbox" 
-                     Stretch="{Binding ImageStretch}" 
-                     Visibility="{Binding ImageViewVisibility}">
-                <Image x:Name="ImageView" 
-                       Source="{Binding ImageSource}" 
-                       Stretch="None" 
-                       RenderOptions.BitmapScalingMode="HighQuality"/>
-            </Viewbox>
-        </Grid>
+        <!-- 静止画/WebPアニメーション表示 -->
+        <Viewbox x:Name="ImageViewbox" 
+                 Stretch="{Binding ImageStretch}" 
+                 Visibility="{Binding ImageViewVisibility}">
+            <Image x:Name="ImageView" 
+                   Source="{Binding ImageSource}" 
+                   Stretch="None" 
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+        </Viewbox>
     </Grid>
 </Window>

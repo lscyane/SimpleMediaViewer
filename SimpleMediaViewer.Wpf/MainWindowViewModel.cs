@@ -33,8 +33,7 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     // コマンド
     public ICommand FitCommand { get; }
     public ICommand OriginalCommand { get; }
-    public ICommand PlayCommand { get; }
-    public ICommand StopCommand { get; }
+    public ICommand PlayPauseCommand { get; }
     public ICommand DropCommand { get; }
     public ICommand NextFileCommand { get; }
     public ICommand PreviousFileCommand { get; }
@@ -87,8 +86,7 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         // コマンドの初期化
         FitCommand = new RelayCommand(ExecuteFit);
         OriginalCommand = new RelayCommand(ExecuteOriginal);
-        PlayCommand = new RelayCommand(ExecutePlay);
-        StopCommand = new RelayCommand(ExecuteStop);
+        PlayPauseCommand = new RelayCommand(ExecutePlayPause);
         DropCommand = new RelayCommand<string>(async (path) => await ExecuteDropAsync(path));
         NextFileCommand = new RelayCommand(async () => await ExecuteNextFileAsync());
         PreviousFileCommand = new RelayCommand(async () => await ExecutePreviousFileAsync());
@@ -106,30 +104,47 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         VideoStretch = Stretch.None;
     }
 
-    private void ExecutePlay()
+    private void ExecutePlayPause()
     {
         if (ImageViewVisibility == Visibility.Visible)
         {
-            if (_isWebPPlaying && !_webPPlayerService.IsPlaying)
+            // 画像/アニメーションの場合
+            if (_isWebPPlaying)
             {
-                _webPPlayerService.Resume();
+                if (_webPPlayerService.IsPlaying)
+                {
+                    _webPPlayerService.Stop();
+                }
+                else
+                {
+                    _webPPlayerService.Resume();
+                }
             }
-            else if (_isGifPlaying && !_gifPlayerService.IsPlaying)
+            else if (_isGifPlaying)
             {
-                _gifPlayerService.Resume();
+                if (_gifPlayerService.IsPlaying)
+                {
+                    _gifPlayerService.Stop();
+                }
+                else
+                {
+                    _gifPlayerService.Resume();
+                }
             }
         }
         else
         {
-            _mediaPlayerService.Play();
+            // 動画の場合
+            var state = _mediaPlayerService.Player.State;
+            if (state == LibVLCSharp.Shared.VLCState.Playing)
+            {
+                _mediaPlayerService.Player.Pause();
+            }
+            else if (state == LibVLCSharp.Shared.VLCState.Paused || state == LibVLCSharp.Shared.VLCState.Stopped)
+            {
+                _mediaPlayerService.Play();
+            }
         }
-    }
-
-    private void ExecuteStop()
-    {
-        _webPPlayerService.Stop();
-        _gifPlayerService.Stop();
-        _mediaPlayerService.Stop();
     }
 
     private async Task ExecuteNextFileAsync()
