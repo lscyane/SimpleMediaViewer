@@ -50,7 +50,7 @@ public class FileManager
         }
     } = string.Empty;
 
-    private string[] CurrentFileList { get; set; } = Array.Empty<string>();
+    public string[] CurrentFileList { get; private set; } = Array.Empty<string>();
 
 
     public string GetNextFile()

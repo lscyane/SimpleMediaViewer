@@ -347,10 +347,15 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
         var dialog = new DialogParameters();
         dialog.Add("Title", "FileList");
         dialog.Add("Manager", FileManager);
+        dialog.Add("OnFileSelected", new Action<string>(async (selectedFile) =>
+        {
+            await ExecuteDropAsync(selectedFile);
+        }));
         this._DialogService.Show(typeof(FileListDialogViewModel), dialog, (result, param) =>
         {
             this.isShowingListDialog = false;
         });
     });
     private bool isShowingListDialog = false;
+
 }

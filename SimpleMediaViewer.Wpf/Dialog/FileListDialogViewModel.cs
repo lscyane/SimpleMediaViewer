@@ -1,13 +1,96 @@
 ﻿using CommunityToolkit.Mvvm.Input;
 using LibVLCSharp.Shared;
 using lscyane.Core.Mvvm;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
 namespace SimpleMediaViewer.Wpf;
 
 
-public class FileListDialogViewModel : DialogViewModelBase
+public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChanged
 {
-    public FileManager FileManager { get; private set; } = new FileManager();
+    private FileManager _fileManager = new FileManager();
+    private ObservableCollection<string> _fileList = new ObservableCollection<string>();
+    private int _selectedIndex = -1;
+    private Action<string>? _onFileSelected;
+
+    public FileManager FileManager 
+    { 
+        get => _fileManager;
+        private set
+        {
+            if (_fileManager != value)
+            {
+                _fileManager = value;
+                OnPropertyChanged();
+                UpdateFileList();
+            }
+        }
+    }
+
+    public ObservableCollection<string> FileList
+    {
+        get => _fileList;
+        private set
+        {
+            if (_fileList != value)
+            {
+                _fileList = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public int SelectedIndex
+    {
+        get => _selectedIndex;
+        set
+        {
+            if (_selectedIndex != value)
+            {
+                _selectedIndex = value;
+                OnPropertyChanged();
+                OnSelectedIndexChanged();
+            }
+        }
+    }
+
+    public new event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private void UpdateFileList()
+    {
+        FileList.Clear();
+        foreach (var file in FileManager.CurrentFileList)
+        {
+            FileList.Add(System.IO.Path.GetFileName(file));
+        }
+
+        // 現在のファイルを選択状態にする
+        var currentFile = FileManager.CurrentFilePath;
+        if (!string.IsNullOrEmpty(currentFile))
+        {
+            var index = Array.IndexOf(FileManager.CurrentFileList, currentFile);
+            if (index >= 0)
+            {
+                SelectedIndex = index;
+            }
+        }
+    }
+
+    private void OnSelectedIndexChanged()
+    {
+        if (SelectedIndex >= 0 && SelectedIndex < FileManager.CurrentFileList.Length)
+        {
+            var selectedFile = FileManager.CurrentFileList[SelectedIndex];
+            _onFileSelected?.Invoke(selectedFile);
+        }
+    }
 
 
     #region Window位置・サイズ関係プロパティ
@@ -50,6 +133,8 @@ public class FileListDialogViewModel : DialogViewModelBase
     {
         this.Title = parameters?.GetValue<string>("Title") ?? throw new ArgumentException();
         this.FileManager = parameters?.GetValue<FileManager>("Manager") ?? throw new ArgumentException();
+        this._onFileSelected = parameters?.GetValue<Action<string>?>("OnFileSelected");
+        UpdateFileList();
     }
 
 

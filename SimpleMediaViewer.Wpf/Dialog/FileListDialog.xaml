@@ -28,8 +28,14 @@
 
         <Grid Grid.Row="1" Grid.ColumnSpan="3">
             <!-- FileList -->
-            <ListView Grid.Column="1">
-
+            <ListView Grid.Column="1" 
+                      ItemsSource="{Binding FileList}"
+                      SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="ファイル名" DisplayMemberBinding="{Binding}" Width="400"/>
+                    </GridView>
+                </ListView.View>
             </ListView>
         </Grid>
 
