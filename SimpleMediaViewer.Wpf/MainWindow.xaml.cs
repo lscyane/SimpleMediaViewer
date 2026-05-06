@@ -48,6 +48,13 @@ namespace SimpleMediaViewer.Wpf
                 return;
             }
 
+            // ウィンドウをアクティブ化
+            Activate();
+            if (WindowState == WindowState.Minimized)
+            {
+                WindowState = WindowState.Normal;
+            }
+
             var path = ((string[])e.Data.GetData(DataFormats.FileDrop)!).FirstOrDefault();
             await _viewModel.ExecuteDropAsync(path);
         }
