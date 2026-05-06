@@ -37,6 +37,26 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     private bool _isWebPPlaying = false;
 
 
+    /// <summary>
+    /// コンストラクタ
+    /// </summary>
+    /// <param name="dialogService"></param>
+    public MainWindowViewModel(IDialogService dialogService)
+    {
+        this._DialogService = dialogService;
+
+        _mediaPlayerService = new MediaPlayerService();
+        _webPPlayerService = new WebPPlayerService();
+        _gifPlayerService = new GifPlayerService();
+
+        // WebPフレーム変更イベント
+        _webPPlayerService.FrameChanged += (s, e) => ImageSource = e;
+
+        // GIFフレーム変更イベント
+        _gifPlayerService.FrameChanged += (s, e) => ImageSource = e;
+    }
+
+
     #region Window位置・サイズ関係プロパティ
     public double WindowLeft
     {
@@ -94,22 +114,6 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     {
         get => _imageSource;
         set => SetProperty(ref _imageSource, value);
-    }
-
-
-    public MainWindowViewModel(IDialogService dialogService)
-    {
-        this._DialogService = dialogService;
-
-        _mediaPlayerService = new MediaPlayerService();
-        _webPPlayerService = new WebPPlayerService();
-        _gifPlayerService = new GifPlayerService();
-
-        // WebPフレーム変更イベント
-        _webPPlayerService.FrameChanged += (s, e) => ImageSource = e;
-
-        // GIFフレーム変更イベント
-        _gifPlayerService.FrameChanged += (s, e) => ImageSource = e;
     }
 
 

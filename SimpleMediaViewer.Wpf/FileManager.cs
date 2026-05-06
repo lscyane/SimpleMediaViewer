@@ -47,6 +47,10 @@ public class FileManager : ObservableObject
         }
     }
 
+
+    /// <summary>
+    /// 現在開いているファイルのディレクトリ
+    /// </summary>
     private string CurrentDirectory
     { 
         get;
@@ -78,6 +82,10 @@ public class FileManager : ObservableObject
         }
     } = string.Empty;
 
+
+    /// <summary>
+    /// 現在開いているファイル
+    /// </summary>
     public string CurrentFilePath
     { 
         get;
@@ -95,9 +103,16 @@ public class FileManager : ObservableObject
     } = string.Empty;
 
 
+    /// <summary>
+    /// 現在開いているディレクトリ内のファイルリスト
+    /// </summary>
     public string[] CurrentFileList { get; private set; } = Array.Empty<string>();
 
 
+    /// <summary>
+    /// ファイルリストから次のファイルを取得する
+    /// </summary>
+    /// <returns></returns>
     public string GetNextFile()
     {
         if (CurrentFileList.Length == 0)
@@ -112,6 +127,11 @@ public class FileManager : ObservableObject
         return CurrentFileList[currentIndex + 1];
     }
 
+
+    /// <summary>
+    /// ファイルリストから前のファイルを取得する
+    /// </summary>
+    /// <returns></returns>
     public string GetPreviousFile()
     {
         if (CurrentFileList.Length == 0)
@@ -125,6 +145,7 @@ public class FileManager : ObservableObject
         }
         return CurrentFileList[currentIndex - 1];
     }
+
 
     /// <summary>
     /// ファイルリストをソートする

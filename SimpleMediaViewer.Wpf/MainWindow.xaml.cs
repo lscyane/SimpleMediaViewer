@@ -13,6 +13,10 @@ namespace SimpleMediaViewer.Wpf
     {
         private readonly MainWindowViewModel _viewModel;
 
+
+        /// <summary>
+        /// コンストラクタ
+        /// </summary>
         public MainWindow()
         {
             // ダイアログサービスの設定
@@ -29,11 +33,13 @@ namespace SimpleMediaViewer.Wpf
             VideoView.MediaPlayer = _viewModel.MediaPlayerService.Player;
         }
 
+
         protected override void OnClosed(EventArgs e)
         {
             base.OnClosed(e);
             _viewModel?.Dispose();
         }
+
 
         // D&D中のカーソル制御
         private void Window_DragOver(object sender, DragEventArgs e)
@@ -44,6 +50,7 @@ namespace SimpleMediaViewer.Wpf
 
             e.Handled = true;
         }
+
 
         // ドロップ時処理
         private async void Window_Drop(object sender, DragEventArgs e)
@@ -63,6 +70,7 @@ namespace SimpleMediaViewer.Wpf
             var path = ((string[])e.Data.GetData(DataFormats.FileDrop)!).FirstOrDefault();
             await _viewModel.ExecuteDropAsync(path);
         }
+
 
         // キーボード操作
         private void Window_KeyDown(object sender, KeyEventArgs e)

@@ -11,9 +11,17 @@ namespace SimpleMediaViewer.Wpf;
 public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChanged
 {
     private ObservableCollection<string> _fileList = new ObservableCollection<string>();
-    private int _selectedIndex = -1;
     private Action<string>? _onFileSelected;
     private bool _isUpdatingSelection = false;
+
+
+    /// <summary>
+    /// コンストラクタ
+    /// </summary>
+    public FileListDialogViewModel()
+    {
+    }
+
 
     public FileManager FileManager 
     { 
@@ -37,34 +45,18 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
                 }
 
                 OnPropertyChanged();
-                UpdateFileList();
             }
         }
     } = new FileManager();
 
-    public ObservableCollection<string> FileList
-    {
-        get => _fileList;
-        private set
-        {
-            if (_fileList != value)
-            {
-                _fileList = value;
-                OnPropertyChanged();
-            }
-        }
-    }
 
     public int SelectedIndex
     {
-        get => _selectedIndex;
+        get => field;
         set
         {
-            if (_selectedIndex != value)
+            if (SetProperty(ref field, value))
             {
-                _selectedIndex = value;
-                OnPropertyChanged();
-
                 // FileManager側の変更による更新の場合は、コールバックを呼ばない
                 if (!_isUpdatingSelection)
                 {
@@ -72,22 +64,33 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
                 }
             }
         }
-    }
+    } = -1;
 
-    public new event PropertyChangedEventHandler? PropertyChanged;
 
-    private new void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    private void OnSelectedIndexChanged()
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        if (SelectedIndex >= 0 && SelectedIndex < FileManager.CurrentFileList.Length)
+        {
+            var selectedFile = FileManager.CurrentFileList[SelectedIndex];
+            _onFileSelected?.Invoke(selectedFile);
+        }
     }
 
+
+    /// <summary>
+    /// FileManageのプロパティ変更イベントハンドラ
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
     private void OnFileManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // FileManageのCurrentFilePathの変更を監視して、SelectedIndexを更新する
         if (e.PropertyName == nameof(FileManager.CurrentFilePath))
         {
             UpdateSelectedIndex();
         }
     }
+
 
     private void UpdateSelectedIndex()
     {
@@ -101,27 +104,6 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
                 SelectedIndex = index;
                 _isUpdatingSelection = false;
             }
-        }
-    }
-
-    private void UpdateFileList()
-    {
-        FileList.Clear();
-        foreach (var file in FileManager.CurrentFileList)
-        {
-            FileList.Add(System.IO.Path.GetFileName(file));
-        }
-
-        // 現在のファイルを選択状態にする
-        UpdateSelectedIndex();
-    }
-
-    private void OnSelectedIndexChanged()
-    {
-        if (SelectedIndex >= 0 && SelectedIndex < FileManager.CurrentFileList.Length)
-        {
-            var selectedFile = FileManager.CurrentFileList[SelectedIndex];
-            _onFileSelected?.Invoke(selectedFile);
         }
     }
 
@@ -153,21 +135,12 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
     #endregion
 
 
-    /// <summary>
-    /// コンストラクタ
-    /// </summary>
-    public FileListDialogViewModel()
-    {
-    }
-
-
     /// <inheritdoc/>
     public override void OnDialogPreviewOpen(DialogParameters? parameters)
     {
         this.Title = parameters?.GetValue<string>("Title") ?? throw new ArgumentException();
         this.FileManager = parameters?.GetValue<FileManager>("Manager") ?? throw new ArgumentException();
         this._onFileSelected = parameters?.GetValue<Action<string>?>("OnFileSelected");
-        UpdateFileList();
     }
 
 
@@ -191,6 +164,7 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
         var retval = new DialogParameters();
         this.OnRequestClose(true, retval);
     });
+
 
     /// <summary>
     /// イベントハンドラのクリーンアップ
