@@ -88,6 +88,9 @@ namespace SimpleMediaViewer.Wpf
             Configuration appSettings = ConfigurationManager.OpenExeConfiguration(System.Configuration.ConfigurationUserLevel.PerUserRoamingAndLocal);
             // TODO // Models.DebugLog.Instance.WriteLine(Models.DebugLog.EType.Info, "user.config path: " + appSettings.FilePath);
 
+            // 関連付けをしたファイルに大して、中アイコン以上の表示時にサムネイルを表示するためのレジストリ登録
+            FileAssociationHelper.RegisterAppIdIfNeeded();
+
             // コマンドライン引数からファイルパス取得
             var filePath = e.Args.FirstOrDefault(x => System.IO.File.Exists(x));
 
