@@ -36,6 +36,14 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     private bool _isGifPlaying = false;
     private bool _isWebPPlaying = false;
 
+    // モーションフォト関連
+    private string? _motionPhotoTempFile;   // 抽出した一時MP4パス
+    private BitmapSource? _motionPhotoStill; // モーションフォトの静止画
+    private bool _isMotionPhoto = false;
+
+    /// <summary>モーションフォトの動画再生が終わったとき発火（UIでフェードアニメーションを開始する）</summary>
+    public event EventHandler? MotionPhotoVideoEnded;
+
 
     /// <summary>
     /// コンストラクタ
@@ -54,6 +62,9 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
 
         // GIFフレーム変更イベント
         _gifPlayerService.FrameChanged += (s, e) => ImageSource = e;
+
+        // モーションフォト動画終了イベント
+        _mediaPlayerService.EndReached += OnMotionPhotoVideoEnded;
     }
 
 
@@ -214,6 +225,8 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
         // フラグをリセット
         _isWebPPlaying = false;
         _isGifPlaying = false;
+        _isMotionPhoto = false;
+        CleanupMotionPhotoTemp();
 
         _currentFilePath = path;
 
@@ -306,16 +319,59 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
             bmp.EndInit();
             bmp.Freeze();
 
-            ImageSource = bmp;
+            // モーションフォト確認
+            var extension = Path.GetExtension(path).ToLowerInvariant();
+            if ((extension == ".jpg" || extension == ".jpeg") &&
+                MotionPhotoHelper.TryGetEmbeddedVideoOffset(path, out long videoOffset))
+            {
+                _motionPhotoStill = bmp;
+                _isMotionPhoto = true;
 
-            // ビューの表示切り替え
-            VideoViewVisibility = Visibility.Collapsed;
-            ImageViewVisibility = Visibility.Visible;
+                // 動画を一時ファイルに抽出して再生（ループなし）
+                _motionPhotoTempFile = MotionPhotoHelper.ExtractEmbeddedVideo(path, videoOffset);
+
+                ImageViewVisibility = Visibility.Collapsed;
+                VideoViewVisibility = Visibility.Visible;
+                _mediaPlayerService.Play(_motionPhotoTempFile, loop: false);
+            }
+            else
+            {
+                ImageSource = bmp;
+
+                // ビューの表示切り替え
+                VideoViewVisibility = Visibility.Collapsed;
+                ImageViewVisibility = Visibility.Visible;
+            }
         }
         catch (Exception ex)
         {
             MessageBox.Show($"画像読み込みエラー: {ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private void OnMotionPhotoVideoEnded(object? sender, EventArgs e)
+    {
+        if (!_isMotionPhoto) return;
+
+        // VLCのEndReachedはワーカースレッドから発火するのでUIスレッドへDispatch
+        Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            if (!_isMotionPhoto) return;
+
+            // 静止画をセットしてからフェードアニメーションをUIに依頼
+            ImageSource = _motionPhotoStill;
+            MotionPhotoVideoEnded?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private void CleanupMotionPhotoTemp()
+    {
+        if (_motionPhotoTempFile != null && File.Exists(_motionPhotoTempFile))
+        {
+            try { File.Delete(_motionPhotoTempFile); } catch { }
+        }
+        _motionPhotoTempFile = null;
+        _motionPhotoStill = null;
     }
 
 
@@ -348,6 +404,7 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
         _webPPlayerService?.Dispose();
         _gifPlayerService?.Dispose();
         _mediaPlayerService?.Dispose();
+        CleanupMotionPhotoTemp();
     }
 
 

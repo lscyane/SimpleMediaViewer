@@ -60,7 +60,9 @@
         <!-- 静止画/WebPアニメーション表示 -->
         <Viewbox x:Name="ImageViewbox" 
                  Stretch="{Binding ImageStretch}" 
-                 Visibility="{Binding ImageViewVisibility}">
+                 Visibility="{Binding ImageViewVisibility}"
+                 Opacity="1"
+                 x:FieldModifier="private">
             <Image x:Name="ImageView" 
                    Source="{Binding ImageSource}" 
                    Stretch="None" 

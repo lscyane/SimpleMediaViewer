@@ -3,6 +3,7 @@ using lscyane.Wpf.Services;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
 
 namespace SimpleMediaViewer.Wpf
 {
@@ -31,6 +32,23 @@ namespace SimpleMediaViewer.Wpf
 
             // VideoViewとMediaPlayerの接続
             VideoView.MediaPlayer = _viewModel.MediaPlayerService.Player;
+
+            // モーションフォト動画終了 → フェードイン
+            _viewModel.MotionPhotoVideoEnded += OnMotionPhotoVideoEnded;
+
+            // 通常画像表示切り替え時は Opacity を即座に 1 にする
+            _viewModel.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(MainWindowViewModel.ImageViewVisibility))
+                {
+                    if (_viewModel.ImageViewVisibility == Visibility.Visible)
+                    {
+                        // モーションフォトのフェード中は触らない
+                        if (!_isFading)
+                            ImageViewbox.Opacity = 1.0;
+                    }
+                }
+            };
         }
 
 
@@ -38,6 +56,28 @@ namespace SimpleMediaViewer.Wpf
         {
             base.OnClosed(e);
             _viewModel?.Dispose();
+        }
+
+        private bool _isFading = false;
+
+        private void OnMotionPhotoVideoEnded(object? sender, EventArgs e)
+        {
+            // 動画を止めて画像ビューに切り替え → フェードイン
+            _viewModel.VideoViewVisibility = Visibility.Collapsed;
+            _viewModel.ImageViewVisibility = Visibility.Visible;
+            ImageViewbox.Opacity = 0.0;
+
+            _isFading = true;
+            var anim = new DoubleAnimation(0.0, 1.0, new Duration(TimeSpan.FromMilliseconds(800)))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            anim.Completed += (_, _) =>
+            {
+                _isFading = false;
+                _viewModel.MediaPlayerService.Stop();
+            };
+            ImageViewbox.BeginAnimation(UIElement.OpacityProperty, anim);
         }
 
 

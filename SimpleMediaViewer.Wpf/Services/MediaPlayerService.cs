@@ -23,7 +23,7 @@ public class MediaPlayerService : IDisposable
         _mediaPlayer.EndReached += OnEndReached;
     }
 
-    public void Play(string filePath)
+    public void Play(string filePath, bool loop = true)
     {
         // 既存のメディアを停止・破棄
         if (_currentMedia != null)
@@ -35,7 +35,10 @@ public class MediaPlayerService : IDisposable
         }
 
         _currentMedia = new Media(_libVLC, new Uri(filePath));
-        _currentMedia.AddOption(":input-repeat=65535");
+        if (loop)
+        {
+            _currentMedia.AddOption(":input-repeat=65535");
+        }
         _mediaPlayer.Volume = 0;
         _mediaPlayer.Play(_currentMedia);
     }
