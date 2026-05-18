@@ -56,6 +56,7 @@ public class GifAnimationPlayer : IDisposable
         byte[]? sharedPrevCanvas = null;
         int sharedCanvasW = 0, sharedCanvasH = 0;
 
+        // 非同期でフレーム0をコンポジット
         var (frames, delays) = await Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -74,8 +75,9 @@ public class GifAnimationPlayer : IDisposable
             var newDelays = new int[frameCount];
 
             for (int i = 0; i < frameCount; i++)
+            {
                 newDelays[i] = isGif ? GetGifFrameDelay(decoder.Frames[i]) : 100;
-
+            }
             // フレーム0をコンポジット
             var canvas = new byte[canvasW * canvasH * 4];
             var prevCanvas = new byte[canvasW * canvasH * 4];
@@ -122,8 +124,7 @@ public class GifAnimationPlayer : IDisposable
                         if (_waitingForNextFrame && _isPlaying && _currentFrameIndex == i)
                         {
                             _waitingForNextFrame = false;
-                            System.Windows.Application.Current?.Dispatcher.BeginInvoke(
-                                () => AdvanceAndShow(_loop));
+                            System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => AdvanceAndShow(_loop));
                         }
                     }
 
@@ -133,6 +134,7 @@ public class GifAnimationPlayer : IDisposable
             }, cancellationToken);
         }
     }
+
 
     /// <summary>
     /// アニメーション再生開始
@@ -168,6 +170,7 @@ public class GifAnimationPlayer : IDisposable
         _timer.Start();
     }
 
+
     /// <summary>
     /// 一時停止から再開
     /// </summary>
@@ -185,6 +188,7 @@ public class GifAnimationPlayer : IDisposable
         _timer.Start();
     }
 
+
     /// <summary>
     /// 停止
     /// </summary>
@@ -197,6 +201,7 @@ public class GifAnimationPlayer : IDisposable
         _currentFrameIndex = 0;
     }
 
+
     /// <summary>
     /// 一時停止
     /// </summary>
@@ -207,6 +212,7 @@ public class GifAnimationPlayer : IDisposable
         _isPlaying = false;
         _waitingForNextFrame = false;
     }
+
 
     /// <summary>
     /// 次フレームへ進んで表示する。キャッシュ未完了なら完了まで待機する。
@@ -244,26 +250,25 @@ public class GifAnimationPlayer : IDisposable
         _timer.Start();
     }
 
+
     // ─────────────────────────────────────────────────────────────
-    // GIFコンポジット処理
+    #region GIFコンポジット処理
     // ─────────────────────────────────────────────────────────────
 
     /// <summary>
     /// フレームをキャンバスにコンポジットして BitmapSource を返す。
     /// canvas はインプレースで更新される（次フレームのために状態を引き継ぐ）。
     /// </summary>
-    private static BitmapSource ComposeFrame(
-        BitmapFrame frame,
-        byte[] canvas,
-        byte[] prevCanvas,
-        int canvasW, int canvasH)
+    private static BitmapSource ComposeFrame(BitmapFrame frame, byte[] canvas, byte[] prevCanvas, int canvasW, int canvasH)
     {
         var (left, top) = GetFrameOffset(frame);
         var disposal = GetDisposalMethod(frame);
 
         // Disposal method 3: この描画前に canvas を保存
         if (disposal == 3)
+        {
             Buffer.BlockCopy(canvas, 0, prevCanvas, 0, canvas.Length);
+        }
 
         // フレームピクセルを Bgra32 で取得
         BitmapSource src = frame.Format != PixelFormats.Bgra32
@@ -312,8 +317,7 @@ public class GifAnimationPlayer : IDisposable
 
         // 現在のキャンバスをスナップショットとして保存
         var snapshot = canvas.ToArray();
-        var bmp = BitmapSource.Create(canvasW, canvasH, 96, 96,
-            PixelFormats.Bgra32, null, snapshot, canvasW * 4);
+        var bmp = BitmapSource.Create(canvasW, canvasH, 96, 96, PixelFormats.Bgra32, null, snapshot, canvasW * 4);
         bmp.Freeze();
 
         // Disposal method を適用（次フレームのためにキャンバスを変更）
@@ -341,9 +345,11 @@ public class GifAnimationPlayer : IDisposable
 
         return bmp;
     }
+    #endregion
+
 
     // ─────────────────────────────────────────────────────────────
-    // メタデータユーティリティ
+    #region メタデータユーティリティ
     // ─────────────────────────────────────────────────────────────
 
     private static (int width, int height) GetCanvasSize(BitmapDecoder decoder)
@@ -432,4 +438,5 @@ public class GifAnimationPlayer : IDisposable
         _currentLoadTask = null;
         ClearState();
     }
+    #endregion
 }
