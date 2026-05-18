@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using LibVLCSharp.Shared;
 using lscyane.Core.Mvvm;
 using SimpleMediaViewer.Wpf.Services;
