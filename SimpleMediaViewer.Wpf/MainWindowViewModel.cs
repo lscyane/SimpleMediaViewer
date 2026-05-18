@@ -254,6 +254,11 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
                 _isWebPPlaying = true;
                 _webPPlayerService.Play(loop: true);
             }
+            else
+            {
+                // 静止画WebPの場合は最初のフレームを表示
+                ImageSource = _webPPlayerService.FirstFrame;
+            }
         }
         catch (Exception ex)
         {

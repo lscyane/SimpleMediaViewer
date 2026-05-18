@@ -25,6 +25,7 @@ public class WebPAnimationPlayer : IDisposable
 
     public bool IsPlaying => _isPlaying;
     public int FrameCount => _image?.Frames.Count ?? 0;
+    public BitmapSource? FirstFrame => _cachedFrames.Length > 0 ? _cachedFrames[0] : null;
 
     /// <summary>
     /// WebPファイルを高速読み込み

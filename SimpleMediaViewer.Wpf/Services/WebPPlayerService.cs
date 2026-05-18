@@ -13,6 +13,7 @@ public class WebPPlayerService : IDisposable
 
     public bool IsPlaying => _player.IsPlaying;
     public int FrameCount => _player.FrameCount;
+    public BitmapSource? FirstFrame => _player.FirstFrame;
 
     public WebPPlayerService()
     {
