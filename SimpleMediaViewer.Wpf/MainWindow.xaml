@@ -12,7 +12,7 @@
         DragOver="Window_DragOver"
         KeyDown="Window_KeyDown"
         Title="MainWindow">
-    <Grid x:Name="hostgrid" Background="Transparent">
+    <Grid x:Name="hostgrid" Background="Black">
         
         <!-- コンテキストメニュー -->
         <Grid.ContextMenu>
