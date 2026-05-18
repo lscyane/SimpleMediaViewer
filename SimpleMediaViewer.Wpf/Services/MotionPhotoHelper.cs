@@ -29,7 +29,7 @@ public static class MotionPhotoHelper
 
             using (var fs = new FileStream(jpegPath, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                fs.Read(header, 0, readSize);
+                fs.ReadExactly(header, 0, readSize);
             }
 
             if (TryGetVideoSizeFromXmp(header, out long videoSize) && videoSize > 0 && videoSize < fileSize)
@@ -42,6 +42,7 @@ public static class MotionPhotoHelper
 
         return false;
     }
+
 
     /// <summary>
     /// 埋め込みMP4を一時ファイルに抽出し、そのパスを返す
@@ -59,10 +60,16 @@ public static class MotionPhotoHelper
         return tempPath;
     }
 
+
     // -------------------------------------------------------------------------
     // XMP解析
     // -------------------------------------------------------------------------
-
+    /// <summary>
+    /// XMP解析
+    /// </summary>
+    /// <param name="header"></param>
+    /// <param name="videoSize"></param>
+    /// <returns></returns>
     private static bool TryGetVideoSizeFromXmp(byte[] header, out long videoSize)
     {
         videoSize = 0;
@@ -118,6 +125,7 @@ public static class MotionPhotoHelper
 
         return false;
     }
+
 
     /// <summary>
     /// XMLテキストブロックから  AttrName="VALUE"  または  AttrName='VALUE'  を取り出す

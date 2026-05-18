@@ -15,6 +15,10 @@ public class MediaPlayerService : IDisposable
 
     public event EventHandler? EndReached;
 
+
+    /// <summary>
+    /// コンストラクタ
+    /// </summary>
     public MediaPlayerService()
     {
         _libVLC = new LibVLC();
@@ -23,6 +27,12 @@ public class MediaPlayerService : IDisposable
         _mediaPlayer.EndReached += OnEndReached;
     }
 
+
+    /// <summary>
+    /// 動画ファイルの再生
+    /// </summary>
+    /// <param name="filePath">再生する動画ファイルのパス</param>
+    /// <param name="loop">ループ再生するかどうか</param>
     public void Play(string filePath, bool loop = true)
     {
         // 既存のメディアを停止・破棄
@@ -43,11 +53,19 @@ public class MediaPlayerService : IDisposable
         _mediaPlayer.Play(_currentMedia);
     }
 
+
+    /// <summary>
+    /// 動画ファイルの再生
+    /// </summary>
     public void Play()
     {
         _mediaPlayer.Play();
     }
 
+
+    /// <summary>
+    /// 動画ファイルの再生停止
+    /// </summary>
     public void Stop()
     {
         // _mediaPlayer.Stop(); 
@@ -61,11 +79,21 @@ public class MediaPlayerService : IDisposable
         _currentMedia = null;
     }
 
+
+    /// <summary>
+    /// 動画再生終了イベント
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
     private void OnEndReached(object? sender, EventArgs e)
     {
         EndReached?.Invoke(this, e);
     }
 
+
+    /// <summary>
+    /// リソースの解放
+    /// </summary>
     public void Dispose()
     {
         _mediaPlayer.Media = null;

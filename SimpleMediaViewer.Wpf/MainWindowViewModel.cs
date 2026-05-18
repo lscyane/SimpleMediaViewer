@@ -94,7 +94,7 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     }
     #endregion
 
-    // プロパティ
+    #region プロパティ
     public MediaPlayerService MediaPlayerService => _mediaPlayerService;
 
     public Visibility VideoViewVisibility
@@ -126,21 +126,31 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
         get => _imageSource;
         set => SetProperty(ref _imageSource, value);
     }
+    #endregion
 
 
-    // コマンド
+    #region コマンド
+    /// <summary>
+    /// ウインドウに合わせて拡大縮小（アスペクト比維持）
+    /// </summary>
     public RelayCommand FitCommand => field ??= new RelayCommand(() =>
     {
         ImageStretch = Stretch.Uniform;
         VideoStretch = Stretch.Uniform;
     });
 
+    /// <summary>
+    /// 原寸で表示（ウインドウサイズに関係なく実際のピクセルサイズで表示）
+    /// </summary>
     public RelayCommand OriginalCommand => field ??= new RelayCommand(() =>
     {
         ImageStretch = Stretch.None;
         VideoStretch = Stretch.None;
     });
 
+    /// <summary>
+    /// 動画の再生/停止
+    /// </summary>
     public RelayCommand PlayPauseCommand => field ??= new RelayCommand(() =>
     {
         if (ImageViewVisibility == Visibility.Visible)
@@ -184,31 +194,83 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
         }
     });
 
+    /// <summary>
+    /// ファイルのD&D
+    /// </summary>
     public RelayCommand<string> DropCommand => field ??= new RelayCommand<string>(async path =>
     {
-        await ExecuteDropAsync(path);
+        await FileOpenAsync(path);
     });
 
+    /// <summary>
+    /// 次のファイルを開く
+    /// </summary>
     public RelayCommand NextFileCommand => field ??= new RelayCommand(async () =>
     {
         var nextFile = FileManager.GetNextFile();
         if (!string.IsNullOrEmpty(nextFile))
         {
-            await ExecuteDropAsync(nextFile);
+            await FileOpenAsync(nextFile);
         }
     });
 
+    /// <summary>
+    /// 前のファイルを開く
+    /// </summary>
     public RelayCommand PreviousFileCommand => field ??= new RelayCommand(async () =>
     {
         var previousFile = FileManager.GetPreviousFile();
         if (!string.IsNullOrEmpty(previousFile))
         {
-            await ExecuteDropAsync(previousFile);
+            await FileOpenAsync(previousFile);
         }
     });
 
+    /// <summary>
+    /// リストダイアログを表示
+    /// </summary>
+    public RelayCommand ShowListDialogCommand => field ??= new RelayCommand(() =>
+    {
+        if (this.isShowingListDialog) return;
 
-    public async Task ExecuteDropAsync(string? path)
+        // FileListDialogを表示
+        this.isShowingListDialog = true;
+        var dialog = new DialogParameters();
+        dialog.Add("Title", "FileList");
+        dialog.Add("Manager", FileManager);
+        dialog.Add("OnFileSelected", new Action<string>(async (selectedFile) =>
+        {
+            await FileOpenAsync(selectedFile);
+        }));
+        this._DialogService.Show(typeof(FileListDialogViewModel), dialog, (result, param) =>
+        {
+            this.isShowingListDialog = false;
+        });
+    });
+    private bool isShowingListDialog = false;
+
+    /// <summary>
+    /// ソート順の変更
+    /// </summary>
+    public RelayCommand<object> SetSortOrderCommand => field ??= new RelayCommand<object>(param =>
+    {
+        if (param != null && int.TryParse(param.ToString(), out int sortOrderValue))
+        {
+            if (Enum.IsDefined(typeof(FileSortOrder), sortOrderValue))
+            {
+                FileManager.SortOrder = (FileSortOrder)sortOrderValue;
+            }
+        }
+    });
+    #endregion
+
+
+    /// <summary>
+    /// ファイルの読込
+    /// </summary>
+    /// <param name="path"></param>
+    /// <returns></returns>
+    public async Task FileOpenAsync(string? path)
     {
         if (path == null || !File.Exists(path))
         {
@@ -251,6 +313,11 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     }
 
 
+    /// <summary>
+    /// WebPファイルの読み込みと再生
+    /// </summary>
+    /// <param name="path"></param>
+    /// <returns></returns>
     private async Task LoadWebPAsync(string path)
     {
         try
@@ -280,6 +347,11 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     }
 
 
+    /// <summary>
+    /// GIFファイルの読込み込みと再生
+    /// </summary>
+    /// <param name="path"></param>
+    /// <returns></returns>
     private async Task LoadGifAsync(string path)
     {
         try
@@ -308,6 +380,10 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     }
 
 
+    /// <summary>
+    /// 静止画の読込
+    /// </summary>
+    /// <param name="path"></param>
     private void LoadStaticImage(string path)
     {
         try
@@ -349,6 +425,12 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
         }
     }
 
+
+    /// <summary>
+    /// モーションフォトの動画部分再生終了イベント
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
     private void OnMotionPhotoVideoEnded(object? sender, EventArgs e)
     {
         if (!_isMotionPhoto) return;
@@ -358,12 +440,16 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
         {
             if (!_isMotionPhoto) return;
 
-            // 静止画をセットしてからフェードアニメーションをUIに依頼
+            // 静止画をセットしてからフェードアニメーションをView側に依頼
             ImageSource = _motionPhotoStill;
             MotionPhotoVideoEnded?.Invoke(this, EventArgs.Empty);
         });
     }
 
+
+    /// <summary>
+    /// モーションフォトの一時動画ファイルと静止画をクリーンアップ
+    /// </summary>
     private void CleanupMotionPhotoTemp()
     {
         if (_motionPhotoTempFile != null && File.Exists(_motionPhotoTempFile))
@@ -375,6 +461,10 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     }
 
 
+    /// <summary>
+    /// 動画の読込と再生
+    /// </summary>
+    /// <param name="path"></param>
     private void LoadVideo(string path)
     {
         try
@@ -392,6 +482,11 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     }
 
 
+    /// <summary>
+    /// 静止画かどうか
+    /// </summary>
+    /// <param name="extension"></param>
+    /// <returns></returns>
     private bool IsImageFile(string extension)
     {
         var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".tiff" };
@@ -399,6 +494,9 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     }
 
 
+    /// <summary>
+    /// リソースの解放
+    /// </summary>
     public void Dispose()
     {
         _webPPlayerService?.Dispose();
@@ -406,37 +504,4 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
         _mediaPlayerService?.Dispose();
         CleanupMotionPhotoTemp();
     }
-
-
-    public RelayCommand ShowListDialogCommand => field ??= new RelayCommand(() =>
-    {
-        if (this.isShowingListDialog) return;
-
-        // FileListDialogを表示
-        this.isShowingListDialog = true;
-        var dialog = new DialogParameters();
-        dialog.Add("Title", "FileList");
-        dialog.Add("Manager", FileManager);
-        dialog.Add("OnFileSelected", new Action<string>(async (selectedFile) =>
-        {
-            await ExecuteDropAsync(selectedFile);
-        }));
-        this._DialogService.Show(typeof(FileListDialogViewModel), dialog, (result, param) =>
-        {
-            this.isShowingListDialog = false;
-        });
-    });
-    private bool isShowingListDialog = false;
-
-    public RelayCommand<object> SetSortOrderCommand => field ??= new RelayCommand<object>(param =>
-    {
-        if (param != null && int.TryParse(param.ToString(), out int sortOrderValue))
-        {
-            if (Enum.IsDefined(typeof(FileSortOrder), sortOrderValue))
-            {
-                FileManager.SortOrder = (FileSortOrder)sortOrderValue;
-            }
-        }
-    });
-
 }

@@ -13,7 +13,7 @@ namespace SimpleMediaViewer.Wpf
     public partial class MainWindow : Window
     {
         private readonly MainWindowViewModel _viewModel;
-
+        private bool _isFading = false;
 
         /// <summary>
         /// コンストラクタ
@@ -52,14 +52,22 @@ namespace SimpleMediaViewer.Wpf
         }
 
 
+        /// <summary>
+        /// 終了時イベント
+        /// </summary>
+        /// <param name="e"></param>
         protected override void OnClosed(EventArgs e)
         {
             base.OnClosed(e);
             _viewModel?.Dispose();
         }
 
-        private bool _isFading = false;
 
+        /// <summary>
+        /// VMからのモーションフォト動画終了イベント → 画像ビューにフェードイン切り替え
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void OnMotionPhotoVideoEnded(object? sender, EventArgs e)
         {
             // 動画を止めて画像ビューに切り替え → フェードイン
@@ -89,12 +97,16 @@ namespace SimpleMediaViewer.Wpf
         {
             if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
             {
-                await _viewModel.ExecuteDropAsync(filePath);
+                await _viewModel.FileOpenAsync(filePath);
             }
         }
 
 
-        // D&D中のカーソル制御
+        /// <summary>
+        /// D&D中のカーソル制御
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void Window_DragOver(object sender, DragEventArgs e)
         {
             e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
@@ -105,7 +117,11 @@ namespace SimpleMediaViewer.Wpf
         }
 
 
-        // ドロップ時処理
+        /// <summary>
+        /// ドロップ時処理
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private async void Window_Drop(object sender, DragEventArgs e)
         {
             if (!e.Data.GetDataPresent(DataFormats.FileDrop))
@@ -121,11 +137,15 @@ namespace SimpleMediaViewer.Wpf
             }
 
             var path = ((string[])e.Data.GetData(DataFormats.FileDrop)!).FirstOrDefault();
-            await _viewModel.ExecuteDropAsync(path);
+            await _viewModel.FileOpenAsync(path);
         }
 
 
-        // キーボード操作
+        /// <summary>
+        /// キーボード操作
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Right)
