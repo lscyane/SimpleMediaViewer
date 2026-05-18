@@ -363,11 +363,15 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
             VideoViewVisibility = Visibility.Collapsed;
             ImageViewVisibility = Visibility.Visible;
 
-            // アニメーションフレームが複数ある場合は自動再生
+            // アニメーションフレームが複数ある場合は自動再生、1フレームでも表示のためPlayを呼ぶ
             if (_gifPlayerService.FrameCount > 1)
             {
                 _isGifPlaying = true;
                 _gifPlayerService.Play(loop: true);
+            }
+            else
+            {
+                _gifPlayerService.Play(loop: false);
             }
         }
         catch (OperationCanceledException)

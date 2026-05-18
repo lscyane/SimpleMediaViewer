@@ -1,142 +1,137 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Formats.Gif;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.PixelFormats;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace SimpleMediaViewer.Wpf;
 
 /// <summary>
-/// GIF/APNGアニメーション再生クラス
+/// GIF/APNGアニメーション再生クラス（WPFビルトインデコーダー + フレームコンポジット対応）
 /// </summary>
 public class GifAnimationPlayer : IDisposable
 {
-    private Image<Bgra32>? _image;
     private DispatcherTimer? _timer;
     private int _currentFrameIndex = 0;
     private bool _isPlaying = false;
-    private BitmapSource?[] _cachedFrames = Array.Empty<BitmapSource>();
+    private BitmapSource?[] _cachedFrames = Array.Empty<BitmapSource?>();
     private int[] _frameDelays = Array.Empty<int>();
     private bool _isFullyLoaded = false;
     private CancellationTokenSource? _loadCancellation;
     private Task? _currentLoadTask;
+    private bool _waitingForNextFrame = false;
+    private bool _loop = true;
 
     public event EventHandler<BitmapSource>? FrameChanged;
     public event EventHandler? AnimationCompleted;
 
     public bool IsPlaying => _isPlaying;
-    public int FrameCount => _image?.Frames.Count ?? 0;
+    public int FrameCount => _cachedFrames.Length;
 
 
     /// <summary>
-    /// GIF/APNGファイルを読み込み
+    /// GIF/APNGファイルを読み込み。
+    /// フレーム0のみ即時コンポジットして返り、残りはバックグラウンドで順次処理する。
     /// </summary>
     public async Task LoadAsync(string filePath)
     {
-        // 前回の読み込みをキャンセルして完了を待つ
         _loadCancellation?.Cancel();
         if (_currentLoadTask != null)
         {
-            await _currentLoadTask;
+            try { await _currentLoadTask; }
+            catch (OperationCanceledException) { }
         }
 
         Stop();
-        Dispose();
+        ClearState();
 
         _loadCancellation = new CancellationTokenSource();
         var cancellationToken = _loadCancellation.Token;
 
-        var configuration = Configuration.Default.Clone();
-        configuration.PreferContiguousImageBuffers = true;
+        var isGif = filePath.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
 
-        using var fileStream = new FileStream(
-            filePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 80 * 1024,
-            useAsync: true);
+        // フレーム0のコンポジットをバックグラウンドで実行して即返す
+        // canvasPixels はバックグラウンドタスクへ引き継ぐためクロージャで共有
+        byte[]? sharedCanvas = null;
+        byte[]? sharedPrevCanvas = null;
+        int sharedCanvasW = 0, sharedCanvasH = 0;
 
-        var decoderOptions = new DecoderOptions { Configuration = configuration };
-        var loadedImage = await Image.LoadAsync<Bgra32>(decoderOptions, fileStream, cancellationToken);
-
-        // キャンセルチェック
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // フォーマットを判定
-        var isPng = loadedImage.Metadata.DecodedImageFormat is PngFormat;
-
-        var frameCount = loadedImage.Frames.Count;
-        var cachedFrames = new BitmapSource[frameCount];
-        var frameDelays = new int[frameCount];
-
-        // 各フレームの遅延時間を取得
-        if (isPng)
+        var (frames, delays) = await Task.Run(() =>
         {
-            // APNGの場合
-            var pngMetadata = loadedImage.Metadata.GetPngMetadata();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var decoder = BitmapDecoder.Create(
+                new Uri(filePath, UriKind.Absolute),
+                BitmapCreateOptions.PreservePixelFormat,
+                BitmapCacheOption.OnLoad);
+
+            var (canvasW, canvasH) = GetCanvasSize(decoder);
+            sharedCanvasW = canvasW;
+            sharedCanvasH = canvasH;
+
+            var frameCount = decoder.Frames.Count;
+            var newFrames = new BitmapSource?[frameCount];
+            var newDelays = new int[frameCount];
+
             for (int i = 0; i < frameCount; i++)
-            {
-                var frame = loadedImage.Frames[i];
-                var frameMetadata = frame.Metadata.GetPngMetadata();
+                newDelays[i] = isGif ? GetGifFrameDelay(decoder.Frames[i]) : 100;
 
-                var delayNumerator = frameMetadata.FrameDelay.Numerator;
-                var delayDenominator = (frameMetadata.FrameDelay.Denominator > 0) ? frameMetadata.FrameDelay.Denominator : 100;
-                frameDelays[i] = (int)((delayNumerator * 1000.0) / delayDenominator);
+            // フレーム0をコンポジット
+            var canvas = new byte[canvasW * canvasH * 4];
+            var prevCanvas = new byte[canvasW * canvasH * 4];
+            newFrames[0] = ComposeFrame(decoder.Frames[0], canvas, prevCanvas, canvasW, canvasH);
 
-                if (frameDelays[i] == 0)
-                {
-                    frameDelays[i] = 100;
-                }
-            }
-        }
-        else
-        {
-            // GIFの場合
-            var gifMetadata = loadedImage.Metadata.GetGifMetadata();
-            for (int i = 0; i < frameCount; i++)
-            {
-                var frame = loadedImage.Frames[i];
-                var frameMetadata = frame.Metadata.GetGifMetadata();
+            sharedCanvas = canvas;
+            sharedPrevCanvas = prevCanvas;
 
-                var delayInCentiseconds = frameMetadata.FrameDelay;
-                frameDelays[i] = delayInCentiseconds > 0 ? delayInCentiseconds * 10 : 100;
-            }
-        }
-
-        // 全フレームを事前にキャッシュ（ローカル変数を使用）
-        _currentLoadTask = Task.Run(() =>
-        {
-            for (int i = 0; i < frameCount; i++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                cachedFrames[i] = ConvertToBitmapSource(loadedImage.Frames[i]);
-            }
+            return (newFrames, newDelays);
         }, cancellationToken);
 
-        await _currentLoadTask;
-
-        // キャンセルチェック
         cancellationToken.ThrowIfCancellationRequested();
 
-        // すべて成功したらフィールドに代入
-        _image = loadedImage;
-        _cachedFrames = cachedFrames;
-        _frameDelays = frameDelays;
-        _isFullyLoaded = true;
+        _cachedFrames = frames;
+        _frameDelays = delays;
+        _isFullyLoaded = frames.Length <= 1;
         _currentFrameIndex = 0;
 
-        // 最初のフレームを表示
-        if (_cachedFrames.Length > 0 && _cachedFrames[0] != null)
+        // フレーム1以降をバックグラウンドで順次コンポジット
+        if (frames.Length > 1)
         {
-            FrameChanged?.Invoke(this, _cachedFrames[0]!);
-        }
+            var canvas = sharedCanvas!;
+            var prevCanvas = sharedPrevCanvas!;
+            var canvasW = sharedCanvasW;
+            var canvasH = sharedCanvasH;
+            var frameCount = frames.Length;
 
-        _currentLoadTask = null;
+            _currentLoadTask = Task.Run(() =>
+            {
+                try
+                {
+                    // このスレッド上で新たにデコーダーを作成することでスレッドアフィニティ違反を回避
+                    var decoder = BitmapDecoder.Create(
+                        new Uri(filePath, UriKind.Absolute),
+                        BitmapCreateOptions.PreservePixelFormat,
+                        BitmapCacheOption.OnLoad);
+
+                    for (int i = 1; i < frameCount; i++)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        _cachedFrames[i] = ComposeFrame(decoder.Frames[i], canvas, prevCanvas, canvasW, canvasH);
+
+                        if (_waitingForNextFrame && _isPlaying && _currentFrameIndex == i)
+                        {
+                            _waitingForNextFrame = false;
+                            System.Windows.Application.Current?.Dispatcher.BeginInvoke(
+                                () => AdvanceAndShow(_loop));
+                        }
+                    }
+
+                    _isFullyLoaded = true;
+                }
+                catch (OperationCanceledException) { }
+            }, cancellationToken);
+        }
     }
 
     /// <summary>
@@ -144,22 +139,32 @@ public class GifAnimationPlayer : IDisposable
     /// </summary>
     public void Play(bool loop = true)
     {
-        if (!_isFullyLoaded || _cachedFrames.Length == 0)
-        {
+        if (_cachedFrames.Length == 0 || _cachedFrames[0] == null)
             return;
-        }
 
         if (_isPlaying)
+            return;
+
+        _loop = loop;
+        _isPlaying = true;
+        _waitingForNextFrame = false;
+        _currentFrameIndex = 0;
+
+        FrameChanged?.Invoke(this, _cachedFrames[0]!);
+
+        if (_cachedFrames.Length == 1)
         {
+            if (!loop)
+            {
+                _isPlaying = false;
+                AnimationCompleted?.Invoke(this, EventArgs.Empty);
+            }
             return;
         }
 
-        _isPlaying = true;
-        _currentFrameIndex = 0;
-
         _timer = new DispatcherTimer(DispatcherPriority.Render);
-        _timer.Tick += (s, e) => OnTimerTick(loop);
-        _timer.Interval = TimeSpan.FromMilliseconds(_frameDelays[_currentFrameIndex]);
+        _timer.Tick += (s, e) => { _timer!.Stop(); AdvanceAndShow(_loop); };
+        _timer.Interval = TimeSpan.FromMilliseconds(_frameDelays[0]);
         _timer.Start();
     }
 
@@ -168,25 +173,16 @@ public class GifAnimationPlayer : IDisposable
     /// </summary>
     public void Resume()
     {
-        if (!_isFullyLoaded || _isPlaying)
-        {
+        if (_isPlaying || _cachedFrames.Length == 0)
             return;
-        }
 
         _isPlaying = true;
+        _waitingForNextFrame = false;
+
         _timer = new DispatcherTimer(DispatcherPriority.Render);
-        _timer.Tick += (s, e) => OnTimerTick(true);
+        _timer.Tick += (s, e) => { _timer!.Stop(); AdvanceAndShow(true); };
         _timer.Interval = TimeSpan.FromMilliseconds(_frameDelays[_currentFrameIndex]);
         _timer.Start();
-    }
-
-    /// <summary>
-    /// 一時停止
-    /// </summary>
-    public void Pause()
-    {
-        _timer?.Stop();
-        _isPlaying = false;
     }
 
     /// <summary>
@@ -197,24 +193,34 @@ public class GifAnimationPlayer : IDisposable
         _timer?.Stop();
         _timer = null;
         _isPlaying = false;
+        _waitingForNextFrame = false;
         _currentFrameIndex = 0;
     }
 
-    private void OnTimerTick(bool loop)
+    /// <summary>
+    /// 一時停止
+    /// </summary>
+    public void Pause()
     {
-        if (_cachedFrames[_currentFrameIndex] != null)
-        {
-            FrameChanged?.Invoke(this, _cachedFrames[_currentFrameIndex]!);
-        }
+        _timer?.Stop();
+        _timer = null;
+        _isPlaying = false;
+        _waitingForNextFrame = false;
+    }
 
-        _currentFrameIndex++;
+    /// <summary>
+    /// 次フレームへ進んで表示する。キャッシュ未完了なら完了まで待機する。
+    /// </summary>
+    private void AdvanceAndShow(bool loop)
+    {
+        if (!_isPlaying) return;
 
-        if (_currentFrameIndex >= _cachedFrames.Length)
+        var nextIndex = _currentFrameIndex + 1;
+
+        if (nextIndex >= _cachedFrames.Length)
         {
             if (loop)
-            {
-                _currentFrameIndex = 0;
-            }
+                nextIndex = 0;
             else
             {
                 Stop();
@@ -223,58 +229,207 @@ public class GifAnimationPlayer : IDisposable
             }
         }
 
-        // 次のフレームの遅延時間に更新
-        if (_timer != null)
+        if (_cachedFrames[nextIndex] == null)
         {
-            _timer.Interval = TimeSpan.FromMilliseconds(_frameDelays[_currentFrameIndex]);
+            _waitingForNextFrame = true;
+            return;
         }
+
+        _currentFrameIndex = nextIndex;
+        FrameChanged?.Invoke(this, _cachedFrames[_currentFrameIndex]!);
+
+        _timer = new DispatcherTimer(DispatcherPriority.Render);
+        _timer.Tick += (s, e) => { _timer!.Stop(); AdvanceAndShow(loop); };
+        _timer.Interval = TimeSpan.FromMilliseconds(_frameDelays[_currentFrameIndex]);
+        _timer.Start();
     }
 
-    private BitmapSource ConvertToBitmapSource(ImageFrame<Bgra32> frame)
-    {
-        var width = frame.Width;
-        var height = frame.Height;
-        var byteCount = width * height * 4;
-        var byteArray = new byte[byteCount];
-
-        frame.ProcessPixelRows(accessor =>
-        {
-            var destSpan = byteArray.AsSpan();
-            for (int y = 0; y < accessor.Height; y++)
-            {
-                var rowSpan = accessor.GetRowSpan(y);
-                var rowBytes = MemoryMarshal.AsBytes(rowSpan);
-                rowBytes.CopyTo(destSpan.Slice(y * width * 4, width * 4));
-            }
-        });
-
-        var bitmap = BitmapSource.Create(
-            width,
-            height,
-            96,
-            96,
-            System.Windows.Media.PixelFormats.Bgra32,
-            null,
-            byteArray,
-            width * 4);
-
-        bitmap.Freeze();
-        return bitmap;
-    }
+    // ─────────────────────────────────────────────────────────────
+    // GIFコンポジット処理
+    // ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// リソースを解放
+    /// フレームをキャンバスにコンポジットして BitmapSource を返す。
+    /// canvas はインプレースで更新される（次フレームのために状態を引き継ぐ）。
     /// </summary>
-    public void Dispose()
+    private static BitmapSource ComposeFrame(
+        BitmapFrame frame,
+        byte[] canvas,
+        byte[] prevCanvas,
+        int canvasW, int canvasH)
     {
-        Stop();
-        _loadCancellation?.Cancel();
-        _loadCancellation?.Dispose();
-        _loadCancellation = null;
-        _image?.Dispose();
-        _image = null;
-        _cachedFrames = Array.Empty<BitmapSource>();
+        var (left, top) = GetFrameOffset(frame);
+        var disposal = GetDisposalMethod(frame);
+
+        // Disposal method 3: この描画前に canvas を保存
+        if (disposal == 3)
+            Buffer.BlockCopy(canvas, 0, prevCanvas, 0, canvas.Length);
+
+        // フレームピクセルを Bgra32 で取得
+        BitmapSource src = frame.Format != PixelFormats.Bgra32
+            ? new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0)
+            : frame;
+
+        var frameW = src.PixelWidth;
+        var frameH = src.PixelHeight;
+        var framePixels = new byte[frameW * frameH * 4];
+        src.CopyPixels(framePixels, frameW * 4, 0);
+
+        // キャンバスにフレームを描画（src-over アルファブレンド）
+        for (int y = 0; y < frameH; y++)
+        {
+            int cy = top + y;
+            if (cy < 0 || cy >= canvasH) continue;
+            for (int x = 0; x < frameW; x++)
+            {
+                int cx = left + x;
+                if (cx < 0 || cx >= canvasW) continue;
+
+                int si = (y * frameW + x) * 4;
+                int di = (cy * canvasW + cx) * 4;
+                byte sa = framePixels[si + 3];
+
+                if (sa == 0) continue;
+
+                if (sa == 255)
+                {
+                    canvas[di]     = framePixels[si];
+                    canvas[di + 1] = framePixels[si + 1];
+                    canvas[di + 2] = framePixels[si + 2];
+                    canvas[di + 3] = 255;
+                }
+                else
+                {
+                    float a = sa / 255f;
+                    float ia = 1f - a;
+                    canvas[di]     = (byte)(framePixels[si]     * a + canvas[di]     * ia);
+                    canvas[di + 1] = (byte)(framePixels[si + 1] * a + canvas[di + 1] * ia);
+                    canvas[di + 2] = (byte)(framePixels[si + 2] * a + canvas[di + 2] * ia);
+                    canvas[di + 3] = (byte)(sa + canvas[di + 3] * ia);
+                }
+            }
+        }
+
+        // 現在のキャンバスをスナップショットとして保存
+        var snapshot = canvas.ToArray();
+        var bmp = BitmapSource.Create(canvasW, canvasH, 96, 96,
+            PixelFormats.Bgra32, null, snapshot, canvasW * 4);
+        bmp.Freeze();
+
+        // Disposal method を適用（次フレームのためにキャンバスを変更）
+        switch (disposal)
+        {
+            case 2: // Restore to background (透明にクリア)
+                for (int y = 0; y < frameH; y++)
+                {
+                    int cy = top + y;
+                    if (cy < 0 || cy >= canvasH) continue;
+                    for (int x = 0; x < frameW; x++)
+                    {
+                        int cx = left + x;
+                        if (cx < 0 || cx >= canvasW) continue;
+                        int di = (cy * canvasW + cx) * 4;
+                        canvas[di] = canvas[di + 1] = canvas[di + 2] = canvas[di + 3] = 0;
+                    }
+                }
+                break;
+            case 3: // Restore to previous
+                Buffer.BlockCopy(prevCanvas, 0, canvas, 0, canvas.Length);
+                break;
+            // 0, 1: Do not dispose（そのまま）
+        }
+
+        return bmp;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // メタデータユーティリティ
+    // ─────────────────────────────────────────────────────────────
+
+    private static (int width, int height) GetCanvasSize(BitmapDecoder decoder)
+    {
+        int w = 0, h = 0;
+        try
+        {
+            if (decoder.Metadata is BitmapMetadata meta)
+            {
+                w = ToInt(meta.GetQuery("/logscrdesc/Width"));
+                h = ToInt(meta.GetQuery("/logscrdesc/Height"));
+            }
+        }
+        catch { }
+
+        if (w <= 0) w = decoder.Frames[0].PixelWidth;
+        if (h <= 0) h = decoder.Frames[0].PixelHeight;
+        return (w, h);
+    }
+
+    private static (int left, int top) GetFrameOffset(BitmapFrame frame)
+    {
+        int left = 0, top = 0;
+        try
+        {
+            if (frame.Metadata is BitmapMetadata meta)
+            {
+                left = ToInt(meta.GetQuery("/imgdesc/Left"));
+                top  = ToInt(meta.GetQuery("/imgdesc/Top"));
+            }
+        }
+        catch { }
+        return (left, top);
+    }
+
+    private static int GetDisposalMethod(BitmapFrame frame)
+    {
+        try
+        {
+            if (frame.Metadata is BitmapMetadata meta)
+                return ToInt(meta.GetQuery("/grctlext/Disposal"));
+        }
+        catch { }
+        return 0;
+    }
+
+    private static int GetGifFrameDelay(BitmapFrame frame)
+    {
+        try
+        {
+            if (frame.Metadata is BitmapMetadata meta)
+            {
+                var v = meta.GetQuery("/grctlext/Delay");
+                int cs = ToInt(v);
+                if (cs > 0) return cs * 10;
+            }
+        }
+        catch { }
+        return 100;
+    }
+
+    private static int ToInt(object? value) => value switch
+    {
+        ushort v => v,
+        short v  => v,
+        uint v   => (int)v,
+        int v    => v,
+        byte v   => v,
+        _        => 0,
+    };
+
+    private void ClearState()
+    {
+        _cachedFrames = Array.Empty<BitmapSource?>();
         _frameDelays = Array.Empty<int>();
         _isFullyLoaded = false;
+        _waitingForNextFrame = false;
+    }
+
+    public void Dispose()
+    {
+        _loadCancellation?.Cancel();
+        Stop();
+        _loadCancellation?.Dispose();
+        _loadCancellation = null;
+        _currentLoadTask = null;
+        ClearState();
     }
 }

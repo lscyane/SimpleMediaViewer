@@ -35,42 +35,39 @@ public class WebPAnimationPlayer : IDisposable
         Stop();
         Dispose();
 
-        // ImageSharp Configurationでメモリアクセス最適化
-        var configuration = Configuration.Default.Clone();
-        configuration.PreferContiguousImageBuffers = true;
-
-        // FileStreamの最適化：大きなバッファサイズでシーケンシャル読み込み
-        using var fileStream = new FileStream(
-            filePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 80 * 1024, // 80KB バッファ
-            useAsync: true);
-
-        // DecoderOptionsでConfigurationを指定
-        var decoderOptions = new DecoderOptions
+        // デコードとフレーム0変換をバックグラウンドで実行（CPUバウンドのためUIスレッドをブロックしない）
+        var (loadedImage, cachedFrames) = await Task.Run(() =>
         {
-            Configuration = configuration
-        };
+            var configuration = Configuration.Default.Clone();
+            configuration.PreferContiguousImageBuffers = true;
 
-        // 画像読み込み
-        _image = await Image.LoadAsync<Bgra32>(decoderOptions, fileStream);
+            using var fileStream = new FileStream(
+                filePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 80 * 1024);
+
+            var decoderOptions = new DecoderOptions { Configuration = configuration };
+            var image = Image.Load<Bgra32>(decoderOptions, fileStream);
+
+            var frames = new BitmapSource?[image.Frames.Count];
+
+            // フレーム0を即時変換
+            if (image.Frames.Count > 0)
+                frames[0] = ConvertToBitmapSource(image.Frames[0]);
+
+            return (image, frames);
+        });
+
+        _image = loadedImage;
+        _cachedFrames = cachedFrames;
         _currentFrameIndex = 0;
-
-        // フレームキャッシュの初期化
-        _cachedFrames = new BitmapSource?[_image.Frames.Count];
         _isFullyLoaded = false;
 
         // タイマーの初期化
         _timer = new DispatcherTimer();
         _timer.Tick += Timer_Tick;
-
-        // 最初のフレームを即座にキャッシュ（表示のため）
-        if (_image.Frames.Count > 0)
-        {
-            _cachedFrames[0] = ConvertToBitmapSource(_image.Frames[0]);
-        }
 
         // バックグラウンドで残りのフレームをキャッシュ
         if (_image.Frames.Count > 1)
