@@ -25,7 +25,7 @@ namespace SimpleMediaViewer.Wpf
             lscyane.Wpf.Services.DialogService.Main.RegisterDialog<Dialog.FileListDialog, FileListDialogViewModel>();
 
             InitializeComponent();
-            LibVLCSharp.Shared.Core.Initialize();
+            Task.Run(() => LibVLCSharp.Shared.Core.Initialize());
 
             this._viewModel = new MainWindowViewModel(DialogService.Main);
             this.DataContext = _viewModel;

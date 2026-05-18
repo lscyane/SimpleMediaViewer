@@ -55,9 +55,6 @@ namespace SimpleMediaViewer.Wpf
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
-
-            // LibVLCSharpの初期化
-            Core.Initialize();
         }
 
 
