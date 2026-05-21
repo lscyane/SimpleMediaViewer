@@ -11,7 +11,7 @@
         Drop="Window_Drop"
         DragOver="Window_DragOver"
         KeyDown="Window_KeyDown"
-        Title="MainWindow"
+        Title="{Binding WindowTitle}"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance vm:MainWindowViewModel}">
     <Grid x:Name="hostgrid" Background="Black">

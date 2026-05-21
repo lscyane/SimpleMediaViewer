@@ -28,7 +28,15 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     private readonly MediaPlayerService _mediaPlayerService;
     private readonly WebPPlayerService _webPPlayerService;
     private readonly GifPlayerService _gifPlayerService;
-    private string? _currentFilePath;
+    private string? _currentFilePath
+    {
+        get; 
+        set
+        {
+            SetProperty(ref field, value);
+            OnPropertyChanged(nameof(WindowTitle));
+        }
+    }
     private Visibility _videoViewVisibility = Visibility.Collapsed;
     private Visibility _imageViewVisibility = Visibility.Visible;
     private Stretch _imageStretch = Stretch.Uniform;
@@ -96,6 +104,11 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     #endregion
 
     #region プロパティ
+    public string WindowTitle
+    {
+        get => string.IsNullOrEmpty(_currentFilePath) ? "SimpleMediaViewer" : $"{Path.GetFileName(_currentFilePath)}";
+    }
+
     public MediaPlayerService MediaPlayerService => _mediaPlayerService;
 
     public Visibility VideoViewVisibility
