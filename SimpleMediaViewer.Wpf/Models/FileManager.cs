@@ -68,7 +68,7 @@ public class FileManager : ObservableObject
     /// <summary>
     /// 現在開いているファイルのディレクトリ
     /// </summary>
-    private string CurrentDirectory
+    public string CurrentDirectory
     { 
         get;
         set

@@ -26,6 +26,8 @@
             <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
+        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,0,0,8" Text="{Binding FileManager.CurrentDirectory}"/>
+
         <Grid Grid.Row="1" Grid.ColumnSpan="3">
             <!-- FileList -->
             <ListView Grid.Column="1" 
@@ -42,9 +44,13 @@
         </Grid>
 
         <!-- ボタン類 -->
-        <StackPanel Grid.Row="2" Grid.ColumnSpan="3" Margin="4" Orientation="Horizontal" HorizontalAlignment="Right">
+        <DockPanel Grid.Row="2" Grid.ColumnSpan="3" Margin="4" >
+            <TextBlock Text="ファイル数：" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding FileManager.FileMetaList.Length}" VerticalAlignment="Center"/>
+            
             <Button MinWidth="60" Margin="4" DockPanel.Dock="Right" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True"/>
             <Button MinWidth="60" Margin="4" DockPanel.Dock="Right" Command="{Binding OkCommand}" Content="OK"/>
-        </StackPanel>
+            <Control/>
+        </DockPanel>
     </Grid>
 </Window>
