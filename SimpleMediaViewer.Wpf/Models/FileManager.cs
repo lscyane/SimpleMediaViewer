@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace SimpleMediaViewer.Wpf;
 
@@ -28,6 +29,19 @@ public enum FileSortOrder
 public class FileManager : ObservableObject
 {
     private FileSortOrder _sortOrder = FileSortOrder.NameAscending;
+
+    /// <summary>
+    /// Windowsエクスプローラーと同様の自然順比較（StrCmpLogicalW）
+    /// </summary>
+    private sealed class NaturalStringComparer : IComparer<string>
+    {
+        public static readonly NaturalStringComparer Instance = new();
+
+        [DllImport("shlwapi.dll", CharSet = CharSet.Unicode)]
+        private static extern int StrCmpLogicalW(string x, string y);
+
+        public int Compare(string? x, string? y) => StrCmpLogicalW(x ?? "", y ?? "");
+    }
 
     // ファイルメタデータキャッシュ（パス → FileInfo相当の情報）
     public record FileMeta(string Path, string FileName, DateTime LastWriteTime, long Length);
@@ -160,8 +174,8 @@ public class FileManager : ObservableObject
         // キャッシュ済みメタデータでソート（I/O なし）
         var sorted = SortOrder switch
         {
-            FileSortOrder.NameAscending    => FileMetaList.OrderBy(f => f.FileName, StringComparer.OrdinalIgnoreCase),
-            FileSortOrder.NameDescending   => FileMetaList.OrderByDescending(f => f.FileName, StringComparer.OrdinalIgnoreCase),
+            FileSortOrder.NameAscending    => FileMetaList.OrderBy(f => f.FileName, NaturalStringComparer.Instance),
+            FileSortOrder.NameDescending   => FileMetaList.OrderByDescending(f => f.FileName, NaturalStringComparer.Instance),
             FileSortOrder.DateAscending    => FileMetaList.OrderBy(f => f.LastWriteTime),
             FileSortOrder.DateDescending   => FileMetaList.OrderByDescending(f => f.LastWriteTime),
             FileSortOrder.SizeAscending    => FileMetaList.OrderBy(f => f.Length),
