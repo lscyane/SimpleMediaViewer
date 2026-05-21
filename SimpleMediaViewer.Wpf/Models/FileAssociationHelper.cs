@@ -19,7 +19,7 @@ public static class FileAssociationHelper
 
     /// <summary>サポートする拡張子一覧</summary>
     public static readonly IReadOnlyList<string> SupportedExtensions =
-        [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".mp4", ".avi", ".mkv", ".mov"];
+        [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".webm", ".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv"];
 
 
     // -------------------------------------------------------------------------

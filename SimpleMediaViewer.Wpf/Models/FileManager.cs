@@ -64,14 +64,9 @@ public class FileManager : ObservableObject
                 // カレントディレクトリが変更された場合、ファイルリストを更新
                 if (System.IO.Directory.Exists(value))
                 {
-                    var supportedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        ".mp4", ".jpg", ".jpeg", ".png", ".gif", ".webp"
-                    };
-
                     // FileInfo を一度だけ取得してキャッシュ（並列で高速化）
                     _fileMetaCache = Directory.EnumerateFiles(value)
-                        .Where(f => supportedExtensions.Contains(Path.GetExtension(f)))
+                        .Where(f => FileAssociationHelper.SupportedExtensions.Contains(Path.GetExtension(f)))
                         .AsParallel()
                         .Select(f =>
                         {
