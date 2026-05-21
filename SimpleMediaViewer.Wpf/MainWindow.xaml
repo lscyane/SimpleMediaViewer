@@ -20,9 +20,6 @@
         <Grid.ContextMenu>
             <ContextMenu>
                 <MenuItem Header="リスト">
-                    <MenuItem Header="前のファイル" Command="{Binding PreviousFileCommand}" InputGestureText="Left"/>
-                    <MenuItem Header="次のファイル" Command="{Binding NextFileCommand}" InputGestureText="Right"/>
-                    <Separator/>
                     <MenuItem Header="ファイルリストを表示" Command="{Binding ShowListDialogCommand}"/>
                     <Separator/>
                     <MenuItem Header="並び順">
@@ -37,6 +34,9 @@
                         <Separator/>
                         <MenuItem Header="ランダム" Command="{Binding SetSortOrderCommand}" CommandParameter="6"/>
                     </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="前のファイル" Command="{Binding PreviousFileCommand}" InputGestureText="Left"/>
+                    <MenuItem Header="次のファイル" Command="{Binding NextFileCommand}" InputGestureText="Right"/>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="表示">
