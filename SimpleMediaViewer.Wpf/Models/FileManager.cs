@@ -1,7 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using System.IO;
 
 namespace SimpleMediaViewer.Wpf;
 
@@ -30,6 +28,11 @@ public enum FileSortOrder
 public class FileManager : ObservableObject
 {
     private FileSortOrder _sortOrder = FileSortOrder.NameAscending;
+
+    // ファイルメタデータキャッシュ（パス → FileInfo相当の情報）
+    private record FileMetaCache(string Path, string FileName, DateTime LastWriteTime, long Length);
+    private FileMetaCache[] _fileMetaCache = [];
+
 
     /// <summary>
     /// 現在のソート順
@@ -65,8 +68,16 @@ public class FileManager : ObservableObject
                     {
                         ".mp4", ".jpg", ".jpeg", ".png", ".gif", ".webp"
                     };
-                    this.CurrentFileList = System.IO.Directory.GetFiles(value)
-                        .Where(file => supportedExtensions.Contains(System.IO.Path.GetExtension(file)))
+
+                    // FileInfo を一度だけ取得してキャッシュ（並列で高速化）
+                    _fileMetaCache = Directory.EnumerateFiles(value)
+                        .Where(f => supportedExtensions.Contains(Path.GetExtension(f)))
+                        .AsParallel()
+                        .Select(f =>
+                        {
+                            var info = new FileInfo(f);
+                            return new FileMetaCache(f, info.Name, info.LastWriteTime, info.Length);
+                        })
                         .ToArray();
 
                     // 取得後にソート
@@ -74,7 +85,8 @@ public class FileManager : ObservableObject
                 }
                 else
                 {
-                    this.CurrentFileList = Array.Empty<string>();
+                    _fileMetaCache = [];
+                    CurrentFileList = [];
                 }
 
                 SetProperty(ref field, value);
@@ -106,7 +118,7 @@ public class FileManager : ObservableObject
     /// <summary>
     /// 現在開いているディレクトリ内のファイルリスト
     /// </summary>
-    public string[] CurrentFileList { get; private set; } = Array.Empty<string>();
+    public string[] CurrentFileList { get; private set; } = [];
 
 
     /// <summary>
@@ -152,24 +164,26 @@ public class FileManager : ObservableObject
     /// </summary>
     private void SortFileList()
     {
-        if (CurrentFileList.Length == 0)
+        if (_fileMetaCache.Length == 0)
         {
+            CurrentFileList = [];
             return;
         }
 
+        // キャッシュ済みメタデータでソート（I/O なし）
         var sorted = SortOrder switch
         {
-            FileSortOrder.NameAscending => CurrentFileList.OrderBy(f => System.IO.Path.GetFileName(f)).ToArray(),
-            FileSortOrder.NameDescending => CurrentFileList.OrderByDescending(f => System.IO.Path.GetFileName(f)).ToArray(),
-            FileSortOrder.DateAscending => CurrentFileList.OrderBy(f => System.IO.File.GetLastWriteTime(f)).ToArray(),
-            FileSortOrder.DateDescending => CurrentFileList.OrderByDescending(f => System.IO.File.GetLastWriteTime(f)).ToArray(),
-            FileSortOrder.SizeAscending => CurrentFileList.OrderBy(f => new System.IO.FileInfo(f).Length).ToArray(),
-            FileSortOrder.SizeDescending => CurrentFileList.OrderByDescending(f => new System.IO.FileInfo(f).Length).ToArray(),
-            FileSortOrder.Random => CurrentFileList.OrderBy(_ => Random.Shared.Next()).ToArray(),
-            _ => CurrentFileList
+            FileSortOrder.NameAscending    => _fileMetaCache.OrderBy(f => f.FileName, StringComparer.OrdinalIgnoreCase),
+            FileSortOrder.NameDescending   => _fileMetaCache.OrderByDescending(f => f.FileName, StringComparer.OrdinalIgnoreCase),
+            FileSortOrder.DateAscending    => _fileMetaCache.OrderBy(f => f.LastWriteTime),
+            FileSortOrder.DateDescending   => _fileMetaCache.OrderByDescending(f => f.LastWriteTime),
+            FileSortOrder.SizeAscending    => _fileMetaCache.OrderBy(f => f.Length),
+            FileSortOrder.SizeDescending   => _fileMetaCache.OrderByDescending(f => f.Length),
+            FileSortOrder.Random           => _fileMetaCache.OrderBy(_ => Random.Shared.Next()),
+            _                              => _fileMetaCache.AsEnumerable()
         };
 
-        CurrentFileList = sorted;
+        CurrentFileList = sorted.Select(f => f.Path).ToArray();
         OnPropertyChanged(nameof(CurrentFileList));
     }
 }
