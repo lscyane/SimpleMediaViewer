@@ -69,9 +69,9 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
 
     private void OnSelectedIndexChanged()
     {
-        if (SelectedIndex >= 0 && SelectedIndex < FileManager.CurrentFileList.Length)
+        if (SelectedIndex >= 0 && SelectedIndex < FileManager.FileMetaList.Length)
         {
-            var selectedFile = FileManager.CurrentFileList[SelectedIndex];
+            var selectedFile = FileManager.FileMetaList[SelectedIndex].Path;
             _onFileSelected?.Invoke(selectedFile);
         }
     }
@@ -97,7 +97,7 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
         var currentFile = FileManager.CurrentFilePath;
         if (!string.IsNullOrEmpty(currentFile))
         {
-            var index = Array.IndexOf(FileManager.CurrentFileList, currentFile);
+            var index = Array.IndexOf(FileManager.FileMetaList.Select(f => f.Path).ToArray(), currentFile);
             if (index >= 0 && index != SelectedIndex)
             {
                 _isUpdatingSelection = true;

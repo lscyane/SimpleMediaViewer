@@ -30,8 +30,8 @@ public class FileManager : ObservableObject
     private FileSortOrder _sortOrder = FileSortOrder.NameAscending;
 
     // ファイルメタデータキャッシュ（パス → FileInfo相当の情報）
-    private record FileMetaCache(string Path, string FileName, DateTime LastWriteTime, long Length);
-    private FileMetaCache[] _fileMetaCache = [];
+    public record FileMeta(string Path, string FileName, DateTime LastWriteTime, long Length);
+    public FileMeta[] FileMetaList { get; private set => SetProperty(ref field, value); } = [];
 
 
     /// <summary>
@@ -65,13 +65,13 @@ public class FileManager : ObservableObject
                 if (System.IO.Directory.Exists(value))
                 {
                     // FileInfo を一度だけ取得してキャッシュ（並列で高速化）
-                    _fileMetaCache = Directory.EnumerateFiles(value)
+                    FileMetaList = Directory.EnumerateFiles(value)
                         .Where(f => FileAssociationHelper.SupportedExtensions.Contains(Path.GetExtension(f)))
                         .AsParallel()
                         .Select(f =>
                         {
                             var info = new FileInfo(f);
-                            return new FileMetaCache(f, info.Name, info.LastWriteTime, info.Length);
+                            return new FileMeta(f, info.Name, info.LastWriteTime, info.Length);
                         })
                         .ToArray();
 
@@ -80,8 +80,7 @@ public class FileManager : ObservableObject
                 }
                 else
                 {
-                    _fileMetaCache = [];
-                    CurrentFileList = [];
+                    FileMetaList = [];
                 }
 
                 SetProperty(ref field, value);
@@ -111,27 +110,21 @@ public class FileManager : ObservableObject
 
 
     /// <summary>
-    /// 現在開いているディレクトリ内のファイルリスト
-    /// </summary>
-    public string[] CurrentFileList { get; private set; } = [];
-
-
-    /// <summary>
     /// ファイルリストから次のファイルを取得する
     /// </summary>
     /// <returns></returns>
     public string GetNextFile()
     {
-        if (CurrentFileList.Length == 0)
+        if (FileMetaList.Length == 0)
         {
             return string.Empty;
         }
-        var currentIndex = Array.IndexOf(CurrentFileList, CurrentFilePath);
-        if (currentIndex < 0 || currentIndex >= CurrentFileList.Length - 1)
+        var currentIndex = Array.IndexOf(FileMetaList.Select(f => f.Path).ToArray(), CurrentFilePath);
+        if (currentIndex < 0 || currentIndex >= FileMetaList.Length - 1)
         {
-            return CurrentFileList[0];
+            return FileMetaList[0].Path;
         }
-        return CurrentFileList[currentIndex + 1];
+        return FileMetaList[currentIndex + 1].Path;
     }
 
 
@@ -141,16 +134,16 @@ public class FileManager : ObservableObject
     /// <returns></returns>
     public string GetPreviousFile()
     {
-        if (CurrentFileList.Length == 0)
+        if (FileMetaList.Length == 0)
         {
             return string.Empty;
         }
-        var currentIndex = Array.IndexOf(CurrentFileList, CurrentFilePath);
+        var currentIndex = Array.IndexOf(FileMetaList.Select(f => f.Path).ToArray(), CurrentFilePath);
         if (currentIndex <= 0)
         {
-            return CurrentFileList[CurrentFileList.Length - 1];
+            return FileMetaList[FileMetaList.Length - 1].Path;
         }
-        return CurrentFileList[currentIndex - 1];
+        return FileMetaList[currentIndex - 1].Path;
     }
 
 
@@ -159,26 +152,24 @@ public class FileManager : ObservableObject
     /// </summary>
     private void SortFileList()
     {
-        if (_fileMetaCache.Length == 0)
+        if (FileMetaList.Length == 0)
         {
-            CurrentFileList = [];
             return;
         }
 
         // キャッシュ済みメタデータでソート（I/O なし）
         var sorted = SortOrder switch
         {
-            FileSortOrder.NameAscending    => _fileMetaCache.OrderBy(f => f.FileName, StringComparer.OrdinalIgnoreCase),
-            FileSortOrder.NameDescending   => _fileMetaCache.OrderByDescending(f => f.FileName, StringComparer.OrdinalIgnoreCase),
-            FileSortOrder.DateAscending    => _fileMetaCache.OrderBy(f => f.LastWriteTime),
-            FileSortOrder.DateDescending   => _fileMetaCache.OrderByDescending(f => f.LastWriteTime),
-            FileSortOrder.SizeAscending    => _fileMetaCache.OrderBy(f => f.Length),
-            FileSortOrder.SizeDescending   => _fileMetaCache.OrderByDescending(f => f.Length),
-            FileSortOrder.Random           => _fileMetaCache.OrderBy(_ => Random.Shared.Next()),
-            _                              => _fileMetaCache.AsEnumerable()
+            FileSortOrder.NameAscending    => FileMetaList.OrderBy(f => f.FileName, StringComparer.OrdinalIgnoreCase),
+            FileSortOrder.NameDescending   => FileMetaList.OrderByDescending(f => f.FileName, StringComparer.OrdinalIgnoreCase),
+            FileSortOrder.DateAscending    => FileMetaList.OrderBy(f => f.LastWriteTime),
+            FileSortOrder.DateDescending   => FileMetaList.OrderByDescending(f => f.LastWriteTime),
+            FileSortOrder.SizeAscending    => FileMetaList.OrderBy(f => f.Length),
+            FileSortOrder.SizeDescending   => FileMetaList.OrderByDescending(f => f.Length),
+            FileSortOrder.Random           => FileMetaList.OrderBy(_ => Random.Shared.Next()),
+            _                              => FileMetaList.AsEnumerable()
         };
 
-        CurrentFileList = sorted.Select(f => f.Path).ToArray();
-        OnPropertyChanged(nameof(CurrentFileList));
+        FileMetaList = sorted.ToArray();
     }
 }

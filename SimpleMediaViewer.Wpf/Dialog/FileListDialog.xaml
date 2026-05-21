@@ -29,11 +29,13 @@
         <Grid Grid.Row="1" Grid.ColumnSpan="3">
             <!-- FileList -->
             <ListView Grid.Column="1" 
-                      ItemsSource="{Binding FileManager.CurrentFileList}"
+                      ItemsSource="{Binding FileManager.FileMetaList}"
                       SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}">
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Header="ファイル名" DisplayMemberBinding="{Binding}" Width="400"/>
+                        <GridViewColumn Header="ファイル名" DisplayMemberBinding="{Binding FileName}"/>
+                        <GridViewColumn Header="更新日時" DisplayMemberBinding="{Binding LastWriteTime}"/>
+                        <GridViewColumn Header="サイズ" DisplayMemberBinding="{Binding Length}"/>
                     </GridView>
                 </ListView.View>
             </ListView>
