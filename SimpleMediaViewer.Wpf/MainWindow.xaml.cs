@@ -148,7 +148,12 @@ namespace SimpleMediaViewer.Wpf
         /// <param name="e"></param>
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Right)
+            if (e.Key == Key.Escape)
+            {
+                Close();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Right)
             {
                 _viewModel.NextFileCommand.Execute(null);
                 e.Handled = true;
