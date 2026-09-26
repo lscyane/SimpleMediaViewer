@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using LibVLCSharp.Shared;
 using lscyane.Core.Mvvm;
 using SimpleMediaViewer.Wpf.Services;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -17,6 +18,25 @@ namespace SimpleMediaViewer.Wpf;
 public interface IMainWindowViewModel;
 
 
+public sealed class FileExtensionFilterItem : ObservableObject
+{
+    private bool _isSelected = true;
+
+    public FileExtensionFilterItem(string extension)
+    {
+        Extension = extension;
+    }
+
+    public string Extension { get; }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
+}
+
+
 /// <summary>
 /// MainWindowのViewModel
 /// </summary>
@@ -24,6 +44,7 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
 {
     private readonly IDialogService _DialogService;
     public FileManager FileManager { get; private set; } = new FileManager();
+    public ObservableCollection<FileExtensionFilterItem> FileExtensionFilters { get; } = [];
 
     private readonly MediaPlayerService _mediaPlayerService;
     private readonly WebPPlayerService _webPPlayerService;
@@ -44,6 +65,7 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     private BitmapSource? _imageSource;
     private bool _isGifPlaying = false;
     private bool _isWebPPlaying = false;
+    private bool _isUpdatingFileExtensionFilters;
 
     // モーションフォト関連
     private string? _motionPhotoTempFile;   // 抽出した一時MP4パス
@@ -61,6 +83,19 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
     public MainWindowViewModel(IDialogService dialogService)
     {
         this._DialogService = dialogService;
+
+        foreach (var extension in FileAssociationHelper.SupportedExtensions)
+        {
+            var filterItem = new FileExtensionFilterItem(extension);
+            filterItem.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(FileExtensionFilterItem.IsSelected) && !_isUpdatingFileExtensionFilters)
+                {
+                    ApplySelectedFileExtensionFilters();
+                }
+            };
+            FileExtensionFilters.Add(filterItem);
+        }
 
         _mediaPlayerService = new MediaPlayerService();
         _webPPlayerService = new WebPPlayerService();
@@ -144,6 +179,29 @@ public class MainWindowViewModel : ObservableObject, IMainWindowViewModel, IDisp
 
 
     #region コマンド
+    public RelayCommand SelectAllFileExtensionsCommand => field ??= new RelayCommand(() => SetAllFileExtensionFilters(true));
+
+    public RelayCommand ClearAllFileExtensionsCommand => field ??= new RelayCommand(() => SetAllFileExtensionFilters(false));
+
+    private void SetAllFileExtensionFilters(bool isSelected)
+    {
+        _isUpdatingFileExtensionFilters = true;
+        foreach (var filter in FileExtensionFilters)
+        {
+            filter.IsSelected = isSelected;
+        }
+        _isUpdatingFileExtensionFilters = false;
+
+        ApplySelectedFileExtensionFilters();
+    }
+
+    private void ApplySelectedFileExtensionFilters()
+    {
+        FileManager.SetSelectedExtensions(FileExtensionFilters
+            .Where(item => item.IsSelected)
+            .Select(item => item.Extension));
+    }
+
     /// <summary>
     /// ウインドウに合わせて拡大縮小（アスペクト比維持）
     /// </summary>

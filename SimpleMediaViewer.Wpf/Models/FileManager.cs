@@ -29,6 +29,8 @@ public enum FileSortOrder
 public class FileManager : ObservableObject
 {
     private FileSortOrder _sortOrder = FileSortOrder.NameAscending;
+    private FileMeta[] _allFileMetaList = [];
+    private HashSet<string> _selectedExtensions = new(FileAssociationHelper.SupportedExtensions, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Windowsエクスプローラーと同様の自然順比較（StrCmpLogicalW）
@@ -46,6 +48,20 @@ public class FileManager : ObservableObject
     // ファイルメタデータキャッシュ（パス → FileInfo相当の情報）
     public record FileMeta(string Path, string FileName, DateTime LastWriteTime, long Length);
     public FileMeta[] FileMetaList { get; private set => SetProperty(ref field, value); } = [];
+
+    /// <summary>
+    /// 現在フィルター対象として選択されている拡張子
+    /// </summary>
+    public IReadOnlyCollection<string> SelectedExtensions => _selectedExtensions;
+
+    /// <summary>
+    /// 表示する拡張子を設定する
+    /// </summary>
+    public void SetSelectedExtensions(IEnumerable<string> extensions)
+    {
+        _selectedExtensions = new HashSet<string>(extensions, StringComparer.OrdinalIgnoreCase);
+        RefreshFileMetaList();
+    }
 
 
     /// <summary>
@@ -79,8 +95,8 @@ public class FileManager : ObservableObject
                 if (System.IO.Directory.Exists(value))
                 {
                     // FileInfo を一度だけ取得してキャッシュ（並列で高速化）
-                    FileMetaList = Directory.EnumerateFiles(value)
-                        .Where(f => FileAssociationHelper.SupportedExtensions.Contains(Path.GetExtension(f)))
+                    _allFileMetaList = Directory.EnumerateFiles(value)
+                        .Where(f => FileAssociationHelper.SupportedExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
                         .AsParallel()
                         .Select(f =>
                         {
@@ -89,11 +105,11 @@ public class FileManager : ObservableObject
                         })
                         .ToArray();
 
-                    // 取得後にソート
-                    SortFileList();
+                    RefreshFileMetaList();
                 }
                 else
                 {
+                    _allFileMetaList = [];
                     FileMetaList = [];
                 }
 
@@ -185,5 +201,17 @@ public class FileManager : ObservableObject
         };
 
         FileMetaList = sorted.ToArray();
+    }
+
+
+    /// <summary>
+    /// 選択された拡張子でファイル一覧を更新する
+    /// </summary>
+    private void RefreshFileMetaList()
+    {
+        FileMetaList = _allFileMetaList
+            .Where(file => _selectedExtensions.Contains(Path.GetExtension(file.Path)))
+            .ToArray();
+        SortFileList();
     }
 }

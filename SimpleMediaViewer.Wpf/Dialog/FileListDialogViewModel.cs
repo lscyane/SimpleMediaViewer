@@ -85,7 +85,7 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
     private void OnFileManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         // FileManageのCurrentFilePathの変更を監視して、SelectedIndexを更新する
-        if (e.PropertyName == nameof(FileManager.CurrentFilePath))
+        if (e.PropertyName == nameof(FileManager.CurrentFilePath) || e.PropertyName == nameof(FileManager.FileMetaList))
         {
             UpdateSelectedIndex();
         }
@@ -98,7 +98,7 @@ public class FileListDialogViewModel : DialogViewModelBase, INotifyPropertyChang
         if (!string.IsNullOrEmpty(currentFile))
         {
             var index = Array.IndexOf(FileManager.FileMetaList.Select(f => f.Path).ToArray(), currentFile);
-            if (index >= 0 && index != SelectedIndex)
+            if (index != SelectedIndex)
             {
                 _isUpdatingSelection = true;
                 SelectedIndex = index;
