@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": ".NET Core Launch",
+            "type": "dotnet",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "projectPath": "${workspaceFolder}/SimpleMediaViewer.Wpf/SimpleMediaViewer.Wpf.csproj",
+        }
+    ]
+}
