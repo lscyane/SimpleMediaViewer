@@ -1,4 +1,4 @@
-#define NOMINMAX
+﻿#define NOMINMAX
 #include "VideoPlayer.h"
 
 #include <Windows.h>
@@ -175,26 +175,25 @@ bool VideoPlayer::UpdateTexture()
 	return updated;
 }
 
-/// <summary>動画をアスペクト比を変えずに描画領域の中央へ配置します。</summary>
-void VideoPlayer::Render(SDL_Renderer* renderer, int outputWidth, int outputHeight) const
+/// <summary>動画テクスチャのピクセル幅を返します。</summary>
+int VideoPlayer::Width() const noexcept
 {
-	if (texture_ == nullptr || textureWidth_ <= 0 || textureHeight_ <= 0 || outputWidth <= 0 || outputHeight <= 0)
-	{
-		return;
-	}
+	return textureWidth_;
+}
 
-	const float scale = std::min(
-		static_cast<float>(outputWidth) / static_cast<float>(textureWidth_),
-		static_cast<float>(outputHeight) / static_cast<float>(textureHeight_));
-	const float width = static_cast<float>(textureWidth_) * scale;
-	const float height = static_cast<float>(textureHeight_) * scale;
-	const SDL_FRect destination{
-		(static_cast<float>(outputWidth) - width) / 2.0f,
-		(static_cast<float>(outputHeight) - height) / 2.0f,
-		width,
-		height
-	};
-	SDL_RenderTexture(renderer, texture_, nullptr, &destination);
+/// <summary>動画テクスチャのピクセル高さを返します。</summary>
+int VideoPlayer::Height() const noexcept
+{
+	return textureHeight_;
+}
+
+/// <summary>指定された変換先矩形に動画テクスチャを描画します。</summary>
+void VideoPlayer::Render(SDL_Renderer* renderer, const SDL_FRect& destination) const
+{
+	if (texture_ != nullptr)
+	{
+		SDL_RenderTexture(renderer, texture_, nullptr, &destination);
+	}
 }
 
 /// <summary>動画プレーヤーが現在存在し、停止処理中ではないかを返します。</summary>
