@@ -2,10 +2,13 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include "VideoPlayer.h"
 #include <Windows.h>
 #include <shellapi.h>
 
 #include <array>
+#include <algorithm>
+#include <cwctype>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -89,6 +92,13 @@ namespace
                 return false;
             }
 
+            videoFrameEventType_ = SDL_RegisterEvents(1);
+            if (videoFrameEventType_ == static_cast<Uint32>(-1))
+            {
+                ShowSdlError(L"動画フレームイベントの登録に失敗しました");
+                return false;
+            }
+
             window_ = SDL_CreateWindow(
                 "SimpleMediaViewer",
                 WINDOW_INITIAL_WIDTH,
@@ -117,6 +127,11 @@ namespace
 
             currentFilePath_ = initialFilePath;
             UpdateWindowTitle();
+            Render();
+            if (!currentFilePath_.empty())
+            {
+                OpenPath(currentFilePath_);
+            }
             return true;
         }
 
@@ -154,6 +169,7 @@ namespace
         /// <summary>SDLリソースを破棄し、SDLを終了します。</summary>
         void Shutdown()
         {
+            videoPlayer_.Shutdown();
             if (checkerTexture_ != nullptr)
             {
                 SDL_DestroyTexture(checkerTexture_);
@@ -214,6 +230,13 @@ namespace
         /// <summary>SDLイベントを処理し、終了・再描画・ドロップされたファイルを反映します。</summary>
         void HandleEvent(const SDL_Event& event, bool& isRunning, bool& needsRendering)
         {
+            if (event.type == videoFrameEventType_)
+            {
+                videoPlayer_.UpdateTexture();
+                needsRendering = true;
+                return;
+            }
+
             switch (event.type)
             {
             case SDL_EVENT_QUIT:
@@ -225,6 +248,10 @@ namespace
                 {
                     isRunning = false;
                 }
+                else if (event.key.key == SDLK_SPACE)
+                {
+                    videoPlayer_.TogglePause();
+                }
                 break;
             case SDL_EVENT_WINDOW_EXPOSED:
             case SDL_EVENT_WINDOW_RESIZED:
@@ -234,8 +261,7 @@ namespace
             case SDL_EVENT_DROP_FILE:
                 if (event.drop.data != nullptr)
                 {
-                    currentFilePath_ = ToWide(event.drop.data);
-                    UpdateWindowTitle();
+                    OpenPath(ToWide(event.drop.data));
                     needsRendering = true;
                     SDL_free(const_cast<char*>(event.drop.data));
                 }
@@ -248,9 +274,44 @@ namespace
         /// <summary>市松背景を描画し、SDLの描画内容をウィンドウへ提示します。</summary>
         void Render()
         {
+            videoPlayer_.UpdateTexture();
             SDL_RenderClear(renderer_);
             SDL_RenderTextureTiled(renderer_, checkerTexture_, nullptr, 1.0f, nullptr);
+            int outputWidth = 0;
+            int outputHeight = 0;
+            if (SDL_GetRenderOutputSize(renderer_, &outputWidth, &outputHeight))
+            {
+                videoPlayer_.Render(renderer_, outputWidth, outputHeight);
+            }
             SDL_RenderPresent(renderer_);
+        }
+
+        /// <summary>対応する動画ファイルを開き、SDLウィンドウ表示後にLibVLCを遅延初期化します。</summary>
+        void OpenPath(const std::wstring& path)
+        {
+            if (path.empty() || !std::filesystem::is_regular_file(path))
+            {
+                return;
+            }
+
+            currentFilePath_ = path;
+            UpdateWindowTitle();
+            videoPlayer_.Stop();
+
+            std::wstring extension = std::filesystem::path(path).extension().wstring();
+            std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
+            static const std::array<std::wstring, 7> VIDEO_EXTENSIONS{
+                L".webm", L".mp4", L".avi", L".mkv", L".mov", L".flv", L".wmv"
+            };
+            if (std::find(VIDEO_EXTENSIONS.begin(), VIDEO_EXTENSIONS.end(), extension) != VIDEO_EXTENSIONS.end())
+            {
+                if (!videoPlayer_.Play(renderer_, videoFrameEventType_, path))
+                {
+                    MessageBoxW(nullptr,
+                        L"動画を開けませんでした。LibVLCの初期化またはメディアの読込に失敗しました。",
+                        L"SimpleMediaViewer", MB_OK | MB_ICONERROR);
+                }
+            }
         }
 
         /// <summary>現在のファイル名をウィンドウタイトルに反映します。</summary>
@@ -274,6 +335,8 @@ namespace
         SDL_Window* window_ = nullptr;
         SDL_Renderer* renderer_ = nullptr;
         SDL_Texture* checkerTexture_ = nullptr;
+        Uint32 videoFrameEventType_ = 0;
+        VideoPlayer videoPlayer_;
         std::wstring currentFilePath_;
     };
 }

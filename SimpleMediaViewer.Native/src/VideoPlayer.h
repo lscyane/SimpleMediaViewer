@@ -1,0 +1,93 @@
+#pragma once
+
+#include <SDL3/SDL.h>
+#include <vlc/vlc.h>
+
+#include <array>
+#include <condition_variable>
+#include <cstdint>
+#include <mutex>
+#include <string>
+#include <vector>
+
+/// <summary>
+/// LibVLCの遅延初期化、動画フレーム受け渡し、SDLテクスチャ表示を担当します。
+/// VLCコールバックではSDLの描画APIを呼ばず、描画スレッドがテクスチャを更新します。
+/// </summary>
+class VideoPlayer final
+{
+public:
+	/// <summary>最初の動画再生要求時にLibVLCを初期化して動画を再生します。</summary>
+	bool Play(SDL_Renderer* renderer, Uint32 frameEventType, const std::wstring& path);
+
+	/// <summary>現在の動画再生を停止し、動画テクスチャを破棄します。</summary>
+	void Stop();
+
+	/// <summary>プレーヤーとLibVLCインスタンスを解放します。</summary>
+	void Shutdown();
+
+	/// <summary>再生中の動画を一時停止または再開します。</summary>
+	void TogglePause();
+
+	/// <summary>新しいVLCフレームがあればSDLテクスチャをメインスレッドで更新します。</summary>
+	bool UpdateTexture();
+
+	/// <summary>アスペクト比を維持して動画テクスチャを描画します。</summary>
+	void Render(SDL_Renderer* renderer, int outputWidth, int outputHeight) const;
+
+	/// <summary>動画が再生中かどうかを返します。</summary>
+	bool IsActive() const noexcept;
+
+private:
+	struct FrameSlot
+	{
+		std::vector<Uint8> pixels;
+		bool decoding = false;
+		bool uploading = false;
+		std::uint64_t sequence = 0;
+	};
+
+	/// <summary>LibVLCインスタンスを必要になった時点で一度だけ生成します。</summary>
+	bool EnsureLibVlcInitialized();
+
+	/// <summary>現在のLibVLCメディアプレーヤーを停止して解放します。</summary>
+	void ReleaseMediaPlayer();
+
+	/// <summary>LibVLCの映像形式をSDLへ渡すRV32/32バイト境界配置へ設定します。</summary>
+	static unsigned SetupVideoFormat(void** opaque, char* chroma, unsigned* width, unsigned* height, unsigned* pitches, unsigned* lines);
+
+	/// <summary>デコーダーが書き込める未使用の共有フレームバッファを取得します。</summary>
+	static void* LockVideoFrame(void* opaque, void** planes);
+
+	/// <summary>デコード完了を記録し、SDLテクスチャを更新できるようイベントで通知します。</summary>
+	static void DisplayVideoFrame(void* opaque, void* picture);
+
+	/// <summary>停止時にコールバック待機を解除してフレーム管理状態を初期化します。</summary>
+	static void CleanupVideoFormat(void* opaque);
+
+	/// <summary>SDLイベントをスレッドセーフに積み、メインループを新フレーム待ちから復帰させます。</summary>
+	void NotifyFrameReady() const;
+
+	/// <summary>デコード完了後のバッファを解放せず、表示コールバックまで予約状態を維持します。</summary>
+	static void UnlockVideoFrame(void* opaque, void* picture, void* const* planes);
+
+	libvlc_instance_t* instance_ = nullptr;
+	libvlc_media_player_t* mediaPlayer_ = nullptr;
+	SDL_Texture* texture_ = nullptr;
+	Uint32 frameEventType_ = 0;
+	int textureWidth_ = 0;
+	int textureHeight_ = 0;
+
+	std::mutex frameMutex_;
+	std::condition_variable frameCondition_;
+	std::array<FrameSlot, 3> frameSlots_{};
+	int latestFrameIndex_ = -1;
+	std::uint64_t nextSequence_ = 0;
+	std::uint64_t uploadedSequence_ = 0;
+	unsigned frameWidth_ = 0;
+	unsigned frameHeight_ = 0;
+	unsigned framePitch_ = 0;
+	bool isConfiguring_ = false;
+	bool isShuttingDown_ = false;
+	SDL_Renderer* renderer_ = nullptr;
+};
