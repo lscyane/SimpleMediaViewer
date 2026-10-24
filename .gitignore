@@ -13,3 +13,5 @@ ExportedObj/
 *.opendb
 bin/
 obj/
+
+/SimpleMediaViewer.Native/vcpkg_installed/
