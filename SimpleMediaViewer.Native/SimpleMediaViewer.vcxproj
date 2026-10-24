@@ -60,10 +60,10 @@
 	  <WarningLevel>Level4</WarningLevel>
 	  <SDLCheck>true</SDLCheck>
 	  <ConformanceMode>true</ConformanceMode>
-	  <LanguageStandard>stdcpp20</LanguageStandard>
+	  <LanguageStandard>stdcpp20</LanguageStandard><AdditionalIncludeDirectories>$(ProjectDir)vcpkg_installed\$(VcpkgTriplet)\include;$(VlcSdkRoot)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
 	  <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
 	</ClCompile>
-	<Link>
+	<Link><AdditionalLibraryDirectories>$(ProjectDir)vcpkg_installed\$(VcpkgTriplet)\debug\lib;$(VlcSdkRoot);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories><AdditionalDependencies>SDL3.lib;SDL3_image.lib;libvlc.lib;libvlccore.lib;%(AdditionalDependencies)</AdditionalDependencies>
 	  <SubSystem>Windows</SubSystem>
 	  <GenerateDebugInformation>true</GenerateDebugInformation>
 	</Link>
@@ -73,20 +73,24 @@
 	  <WarningLevel>Level4</WarningLevel>
 	  <SDLCheck>true</SDLCheck>
 	  <ConformanceMode>true</ConformanceMode>
-	  <LanguageStandard>stdcpp20</LanguageStandard>
+	  <LanguageStandard>stdcpp20</LanguageStandard><AdditionalIncludeDirectories>$(ProjectDir)vcpkg_installed\$(VcpkgTriplet)\include;$(VlcSdkRoot)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
 	  <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
 	  <Optimization>MaxSpeed</Optimization>
 	  <FunctionLevelLinking>true</FunctionLevelLinking>
 	  <IntrinsicFunctions>true</IntrinsicFunctions>
 	</ClCompile>
-	<Link>
+	<Link><AdditionalLibraryDirectories>$(ProjectDir)vcpkg_installed\$(VcpkgTriplet)\lib;$(VlcSdkRoot);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories><AdditionalDependencies>SDL3.lib;SDL3_image.lib;libvlc.lib;libvlccore.lib;%(AdditionalDependencies)</AdditionalDependencies>
 	  <SubSystem>Windows</SubSystem>
 	  <GenerateDebugInformation>true</GenerateDebugInformation>
 	  <EnableCOMDATFolding>true</EnableCOMDATFolding>
 	  <OptimizeReferences>true</OptimizeReferences>
 	</Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
+  <ItemDefinitionGroup><ClCompile><AdditionalIncludeDirectories>$(VlcSdkRoot)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile><Link><AdditionalLibraryDirectories>$(ProjectDir)vcpkg_installed\$(VcpkgTriplet)\lib;$(VlcSdkRoot);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories><AdditionalDependencies>SDL3.lib;SDL3_image.lib;libvlc.lib;libvlccore.lib;%(AdditionalDependencies)</AdditionalDependencies><AdditionalLibraryDirectories>$(VlcSdkRoot);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories><AdditionalDependencies>libvlc.lib;libvlccore.lib;%(AdditionalDependencies)</AdditionalDependencies></Link><PostBuildEvent><Command>copy /Y "$(VlcSdkRoot)\libvlc.dll" "$(OutDir)" &gt;NUL
+copy /Y "$(VlcSdkRoot)\libvlccore.dll" "$(OutDir)" &gt;NUL
+xcopy /E /I /Y "$(VlcSdkRoot)\plugins" "$(OutDir)plugins" &gt;NUL
+xcopy /E /I /Y "$(VlcSdkRoot)\hrtfs" "$(OutDir)hrtfs" &gt;NUL
+xcopy /E /I /Y "$(VlcSdkRoot)\lua" "$(OutDir)lua" &gt;NUL</Command></PostBuildEvent></ItemDefinitionGroup><ItemGroup>
 	<ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
