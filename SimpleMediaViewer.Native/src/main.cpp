@@ -11,9 +11,12 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cwctype>
 #include <filesystem>
+#include <future>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -167,10 +170,14 @@ namespace
 
             while (isRunning)
             {
+                ProcessFolderScan();
                 SDL_Event event{};
                 if (!needsRendering)
                 {
-                    if (!SDL_WaitEvent(&event))
+                    const bool receivedEvent = folderScanFuture_.valid()
+                        ? SDL_WaitEventTimeout(&event, 20)
+                        : SDL_WaitEvent(&event);
+                    if (!receivedEvent)
                     {
                         continue;
                     }
@@ -182,6 +189,7 @@ namespace
                     HandleEvent(event, isRunning, needsRendering);
                 }
 
+                ProcessFolderScan();
                 if (needsRendering && isRunning)
                 {
                     Render();
@@ -218,6 +226,97 @@ namespace
 
 
     private:
+        struct FolderScanResult
+        {
+            std::wstring directory;
+            std::vector<std::wstring> files;
+        };
+
+
+        static std::vector<std::wstring> EnumerateFolderFiles(const std::wstring& directory)
+        {
+            static const std::array<std::wstring, 18> SUPPORTED_EXTENSIONS{
+                L".jpg", L".jpeg", L".jpe", L".png", L".gif", L".bmp", L".dib", L".webp", L".tif", L".tiff",
+                L".webm", L".mp4", L".avi", L".mkv", L".mov", L".flv", L".wmv", L".mpeg"
+            };
+
+            std::vector<std::wstring> files;
+            std::error_code error;
+            for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(directory, error))
+            {
+                if (error)
+                {
+                    break;
+                }
+                if (!entry.is_regular_file(error))
+                {
+                    error.clear();
+                    continue;
+                }
+
+                std::wstring extension = entry.path().extension().wstring();
+                std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
+                if (std::find(SUPPORTED_EXTENSIONS.begin(), SUPPORTED_EXTENSIONS.end(), extension) != SUPPORTED_EXTENSIONS.end())
+                {
+                    files.push_back(entry.path().lexically_normal().wstring());
+                }
+                error.clear();
+            }
+
+            std::sort(files.begin(), files.end(), [](const std::wstring& left, const std::wstring& right)
+            {
+                const std::wstring leftName = std::filesystem::path(left).filename().wstring();
+                const std::wstring rightName = std::filesystem::path(right).filename().wstring();
+                return StrCmpLogicalW(leftName.c_str(), rightName.c_str()) < 0;
+            });
+            return files;
+        }
+
+
+        void StartFolderScan(const std::wstring& directory)
+        {
+            folderScanFuture_ = std::async(std::launch::async, [directory]
+            {
+                return FolderScanResult{ directory, EnumerateFolderFiles(directory) };
+            });
+        }
+
+
+        void ProcessFolderScan()
+        {
+            if (!folderScanFuture_.valid() ||
+                folderScanFuture_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+            {
+                return;
+            }
+
+            FolderScanResult result = folderScanFuture_.get();
+            if (result.directory == currentDirectory_)
+            {
+                fileList_ = std::move(result.files);
+                currentFileIndex_ = 0;
+                for (size_t index = 0; index < fileList_.size(); ++index)
+                {
+                    if (CompareStringOrdinal(fileList_[index].c_str(), -1, currentFilePath_.c_str(), -1, TRUE) == CSTR_EQUAL)
+                    {
+                        currentFileIndex_ = index;
+                        break;
+                    }
+                }
+            }
+
+            if (pendingFolderDirectory_.has_value())
+            {
+                std::wstring directory = std::move(*pendingFolderDirectory_);
+                pendingFolderDirectory_.reset();
+                if (directory != result.directory)
+                {
+                    StartFolderScan(directory);
+                }
+            }
+        }
+
+
         /// <summary>
         /// 市松背景を一枚の小さな反復テクスチャとして作成します。
         /// </summary>
@@ -499,40 +598,13 @@ namespace
             currentDirectory_ = directory;
             fileList_.clear();
             currentFileIndex_ = 0;
-            static const std::array<std::wstring, 18> SUPPORTED_EXTENSIONS{
-                L".jpg", L".jpeg", L".jpe", L".png", L".gif", L".bmp", L".dib", L".webp", L".tif", L".tiff",
-                L".webm", L".mp4", L".avi", L".mkv", L".mov", L".flv", L".wmv", L".mpeg"
-            };
-
-            error.clear();
-            for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(directory, error))
+            if (folderScanFuture_.valid())
             {
-                if (error)
-                {
-                    break;
-                }
-                if (!entry.is_regular_file(error))
-                {
-                    error.clear();
-                    continue;
-                }
-
-                std::wstring extension = entry.path().extension().wstring();
-                std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
-                if (std::find(SUPPORTED_EXTENSIONS.begin(), SUPPORTED_EXTENSIONS.end(), extension) != SUPPORTED_EXTENSIONS.end())
-                {
-                    fileList_.push_back(entry.path().lexically_normal().wstring());
-                }
-                error.clear();
+                pendingFolderDirectory_ = directory;
+                return;
             }
 
-            // Windows Explorerと同様に、ファイル名中の数字を数値として自然順比較します。
-            std::sort(fileList_.begin(), fileList_.end(), [](const std::wstring& left, const std::wstring& right)
-            {
-                const std::wstring leftName = std::filesystem::path(left).filename().wstring();
-                const std::wstring rightName = std::filesystem::path(right).filename().wstring();
-                return StrCmpLogicalW(leftName.c_str(), rightName.c_str()) < 0;
-            });
+            StartFolderScan(directory);
         }
 
 
@@ -563,7 +635,9 @@ namespace
                 return;
             }
 
+			// 同じフォルダー内の対応メディアを収集し、現在のファイルインデックスを更新する
             RefreshFolderFiles(path);
+
             std::error_code absoluteError;
             const std::filesystem::path absolutePath = std::filesystem::absolute(path, absoluteError).lexically_normal();
             currentFilePath_ = absoluteError ? path : absolutePath.wstring();
@@ -653,6 +727,8 @@ namespace
         std::wstring currentDirectory_;
         std::vector<std::wstring> fileList_;
         size_t currentFileIndex_ = 0;
+        std::future<FolderScanResult> folderScanFuture_;
+        std::optional<std::wstring> pendingFolderDirectory_;
     };
 }
 
