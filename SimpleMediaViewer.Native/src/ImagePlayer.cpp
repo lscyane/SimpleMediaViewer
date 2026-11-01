@@ -108,7 +108,7 @@ namespace
 	{
 		std::wstring extension = std::filesystem::path(path).extension().wstring();
 		std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
-		return extension == L".gif" || extension == L".webp" || extension == L".png" || extension == L".apng";
+		return std::find(ANIMATION_DECODER_EXTENSIONS.begin(), ANIMATION_DECODER_EXTENSIONS.end(), extension) != ANIMATION_DECODER_EXTENSIONS.end();
 	}
 
 

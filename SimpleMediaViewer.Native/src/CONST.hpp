@@ -1,6 +1,28 @@
 #pragma once
 
 #include <SDL3/SDL.h>
+#include <algorithm>
+#include <array>
+#include <string>
+
+// -------------------------------------------------------------
+// メディア関連設定
+// -------------------------------------------------------------
+inline static const std::array<std::wstring, 12> IMAGE_EXTENSIONS{
+	L".jpg", L".jpeg", L".png", L".apng", L".bmp", L".tif", L".tiff", L".gif", L".webp", L".avif", L".dib", L".jpe"
+};
+inline static const std::array<std::wstring, 8> VIDEO_EXTENSIONS{
+    L".webm", L".mp4", L".avi", L".mkv", L".mov", L".flv", L".wmv", L".mpeg"
+};
+inline static const auto SUPPORTED_EXTENSIONS = [] {
+	std::array<std::wstring, IMAGE_EXTENSIONS.size() + VIDEO_EXTENSIONS.size()> extensions{};
+	std::copy(IMAGE_EXTENSIONS.begin(), IMAGE_EXTENSIONS.end(), extensions.begin());
+	std::copy(VIDEO_EXTENSIONS.begin(), VIDEO_EXTENSIONS.end(), extensions.begin() + IMAGE_EXTENSIONS.size());
+	return extensions;
+}();
+inline static const std::array<std::wstring, 4> ANIMATION_DECODER_EXTENSIONS{
+	L".gif", L".webp", L".png", L".apng"
+};
 
 // -------------------------------------------------------------
 // ウインドウ関連設定
