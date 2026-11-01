@@ -16,6 +16,7 @@
 namespace
 {
 	constexpr bool HONOR_ANIMATION_LOOP_COUNT = true;
+	constexpr bool USE_NEAREST_NEIGHBOR_IMAGE_SCALING = true;
 
 
 	/// <summary>
@@ -405,6 +406,9 @@ bool ImagePlayer::Load(SDL_Renderer* renderer, const std::wstring& path)
 	{
 		return false;
 	}
+	SDL_SetTextureScaleMode(
+		texture_,
+		USE_NEAREST_NEIGHBOR_IMAGE_SCALING ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
 
 	float width = 0.0f;
 	float height = 0.0f;
@@ -524,6 +528,9 @@ bool ImagePlayer::SetTextureFromSurface(SDL_Renderer* renderer, SDL_Surface* sur
 	{
 		return false;
 	}
+	SDL_SetTextureScaleMode(
+		texture,
+		USE_NEAREST_NEIGHBOR_IMAGE_SCALING ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
 
 	if (texture_ != nullptr)
 	{
