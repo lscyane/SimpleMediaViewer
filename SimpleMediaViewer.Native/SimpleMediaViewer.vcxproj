@@ -114,10 +114,12 @@ xcopy /E /I /Y "$(VlcSdkRoot)\lua" "$(OutDir)lua" &gt;NUL</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\FileManager.cpp" />
     <ClCompile Include="src\VideoPlayer.cpp" />
     <ClCompile Include="src\ImagePlayer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\FileManager.h" />
     <ClInclude Include="src\VideoPlayer.h" />
     <ClInclude Include="src\ImagePlayer.h" />
   </ItemGroup>
