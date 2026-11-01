@@ -9,9 +9,9 @@ rem 1. ビルド対象
 set "TARGET_PROJECT=SimpleMediaViewer.Native\SimpleMediaViewer.vcxproj"
 
 rem 2. Visual Studio / Build Tools のインストールパス
-set "VS_PATH=C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools"
-set "VCPKG_EXE=%VS_PATH%\VC\vcpkg\vcpkg.exe"
-set "NATIVE_DIR=%CD%\SimpleMediaViewer.Native"
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+set "VS_PATH="
+set "NATIVE_DIR=%~dp0SimpleMediaViewer.Native"
 set "VCPKG_BIN=%NATIVE_DIR%\vcpkg_installed\x64-windows\bin"
 set "BUILD_OUTPUT_DIR=%NATIVE_DIR%\bin\x64\Release"
 rem =================================================================
@@ -23,7 +23,11 @@ if not exist "%TARGET_PROJECT%" (
 )
 
 echo [1/5] 環境変数の初期化中...
+if not exist "%VSWHERE%" goto :vswhere_missing
+for /f "usebackq tokens=* delims=" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VS_PATH=%%i"
+if not defined VS_PATH goto :vsvars_missing
 if not exist "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat" goto :vsvars_missing
+set "VCPKG_EXE=%VS_PATH%\VC\vcpkg\vcpkg.exe"
 
 rem 64bit(x64)向け環境変数を読み込む
 call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
@@ -74,7 +78,13 @@ exit /b 1
 
 :vsvars_missing
 echo 【エラー】x64 ビルド環境が見つかりません。
-echo 設定パス: %VS_PATH%\VC\Auxiliary\Build\vcvars64.bat
+echo Visual Studio または Build Tools に C++ x64 ビルドツールがインストールされているか確認してください。
+if defined VS_PATH echo 検出したパス: %VS_PATH%
+goto :error
+
+:vswhere_missing
+echo 【エラー】Visual Studio のインストール情報を検索できません。
+echo vswhere.exe が見つかりません: %VSWHERE%
 goto :error
 
 :vcpkg_missing
