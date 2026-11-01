@@ -163,17 +163,20 @@ namespace
 	/// </summary>
 	const std::array<Uint32, 256>& GetPngCrcTable()
 	{
-		static const std::array<Uint32, 256> table = []
+		constexpr size_t tableSize = 256;
+		static const std::array<Uint32, tableSize> table = []
 		{
-			std::array<Uint32, 256> result{};
-			for (size_t index = 0; index < result.size(); ++index)
+			std::array<Uint32, tableSize> result{};
+			size_t index = 0;
+			for (Uint32& tableEntry : result)
 			{
 				Uint32 value = static_cast<Uint32>(index);
 				for (int bit = 0; bit < 8; ++bit)
 				{
 					value = (value & 1u) != 0 ? 0xedb88320u ^ (value >> 1) : value >> 1;
 				}
-				result[index] = value;
+				tableEntry = value;
+				++index;
 			}
 			return result;
 		}();
