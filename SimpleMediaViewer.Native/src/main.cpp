@@ -362,10 +362,30 @@ namespace
                     needsRendering = true;
                 }
                 break;
+
+            // マウスホイールイベント
             case SDL_EVENT_MOUSE_WHEEL:
             {
                 const float direction = event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0f : 1.0f;
+                const float previousZoom = zoom_;
                 zoom_ = std::clamp(zoom_ * std::pow(1.15f, event.wheel.y * direction), 0.05f, 32.0f);
+                if (zoom_ != previousZoom)
+                {
+                    int windowWidth = 0;
+                    int windowHeight = 0;
+                    int outputWidth = 0;
+                    int outputHeight = 0;
+                    SDL_GetWindowSize(window_, &windowWidth, &windowHeight);
+                    if (SDL_GetRenderOutputSize(renderer_, &outputWidth, &outputHeight) && windowWidth > 0 && windowHeight > 0)
+                    {
+						// マウスカーソルの位置を基準にズームイン・ズームアウトする
+                        const float scaleRatio = zoom_ / previousZoom;
+                        const float pointerX = event.wheel.mouse_x * static_cast<float>(outputWidth) / static_cast<float>(windowWidth);
+                        const float pointerY = event.wheel.mouse_y * static_cast<float>(outputHeight) / static_cast<float>(windowHeight);
+                        panX_ = pointerX - static_cast<float>(outputWidth) / 2.0f -  (pointerX - static_cast<float>(outputWidth) / 2.0f - panX_) * scaleRatio;
+                        panY_ = pointerY - static_cast<float>(outputHeight) / 2.0f - (pointerY - static_cast<float>(outputHeight) / 2.0f - panY_) * scaleRatio;
+                    }
+                }
                 needsRendering = true;
                 break;
             }
