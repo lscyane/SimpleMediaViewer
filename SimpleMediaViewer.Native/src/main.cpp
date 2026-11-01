@@ -170,14 +170,20 @@ namespace
                 SDL_Event event{};
                 if (!needsRendering)
                 {
-                    const bool receivedEvent = fileManager_.IsScanPending()
-                        ? SDL_WaitEventTimeout(&event, 20)
-                        : SDL_WaitEvent(&event);
-                    if (!receivedEvent)
+                    int waitTimeout = fileManager_.IsScanPending() ? 20 : -1;
+                    const int animationTimeout = imagePlayer_.MillisecondsUntilNextFrame();
+                    if (animationTimeout >= 0)
                     {
-                        continue;
+                        waitTimeout = waitTimeout < 0 ? animationTimeout : std::min(waitTimeout, animationTimeout);
                     }
-                    HandleEvent(event, isRunning, needsRendering);
+
+                    const bool receivedEvent = waitTimeout < 0
+                        ? SDL_WaitEvent(&event)
+                        : SDL_WaitEventTimeout(&event, waitTimeout);
+                    if (receivedEvent)
+                    {
+                        HandleEvent(event, isRunning, needsRendering);
+                    }
                 }
 
                 while (SDL_PollEvent(&event))
@@ -186,6 +192,10 @@ namespace
                 }
 
                 fileManager_.ProcessPendingScan();
+                if (imagePlayer_.AdvanceAnimation())
+                {
+                    needsRendering = true;
+                }
                 if (needsRendering && isRunning)
                 {
                     Render();
@@ -287,7 +297,14 @@ namespace
                 }
                 else if (!event.key.repeat && event.key.key == SDLK_SPACE)
                 {
-                    videoPlayer_.TogglePause();
+                    if (imagePlayer_.IsAnimated())
+                    {
+                        imagePlayer_.TogglePause();
+                    }
+                    else
+                    {
+                        videoPlayer_.TogglePause();
+                    }
                 }
                 else if (!event.key.repeat && event.key.key == SDLK_RIGHT)
                 {
@@ -475,7 +492,14 @@ namespace
                 panY_ = 0.0f;
                 break;
             case 2:
-                videoPlayer_.TogglePause();
+                if (imagePlayer_.IsAnimated())
+                {
+                    imagePlayer_.TogglePause();
+                }
+                else
+                {
+                    videoPlayer_.TogglePause();
+                }
                 break;
             case 3:
                 isRunning = false;
@@ -531,8 +555,8 @@ namespace
             static const std::array<std::wstring, 8> VIDEO_EXTENSIONS{
                 L".webm", L".mp4", L".avi", L".mkv", L".mov", L".flv", L".wmv", L".mpeg"
             };
-            static const std::array<std::wstring, 10> IMAGE_EXTENSIONS{
-                L".jpg", L".jpeg", L".png", L".bmp", L".tif", L".tiff", L".gif", L".webp", L".dib", L".jpe"
+            static const std::array<std::wstring, 11> IMAGE_EXTENSIONS{
+                L".jpg", L".jpeg", L".png", L".apng", L".bmp", L".tif", L".tiff", L".gif", L".webp", L".dib", L".jpe"
             };
             if (std::find(VIDEO_EXTENSIONS.begin(), VIDEO_EXTENSIONS.end(), extension) != VIDEO_EXTENSIONS.end())
             {
