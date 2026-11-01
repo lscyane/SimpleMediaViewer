@@ -8,12 +8,7 @@
 #include <iterator>
 #include <limits>
 #include <string>
-
-namespace
-{
-	constexpr unsigned VIDEO_ALIGNMENT = 32;
-	constexpr unsigned MAX_VIDEO_DIMENSION = 32768;
-}
+#include "CONST.hpp"
 
 
 /// <summary>

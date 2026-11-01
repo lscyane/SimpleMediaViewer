@@ -3,6 +3,7 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include "CONST.hpp"
 #include "FileManager.h"
 #include "ImagePlayer.h"
 #include "VideoPlayer.h"
@@ -21,16 +22,6 @@
 
 namespace
 {
-    // ウィンドウの初期サイズと市松模様の見た目をここでまとめて調整します。
-    constexpr int WINDOW_INITIAL_WIDTH = 960;
-    constexpr int WINDOW_INITIAL_HEIGHT = 640;
-    constexpr int CHECKER_CELL_SIZE = 32;
-    constexpr SDL_Color CHECKER_LIGHT_COLOR{ 112, 112, 112, 255 };
-    constexpr SDL_Color CHECKER_DARK_COLOR{ 72, 72, 72, 255 };
-    constexpr float CONTEXT_MENU_WIDTH = 196.0f;
-    constexpr float CONTEXT_MENU_ROW_HEIGHT = 30.0f;
-
-
     /// <summary>
     /// WindowsのUTF-16文字列をSDL API用のUTF-8文字列へ変換します。
     /// </summary>

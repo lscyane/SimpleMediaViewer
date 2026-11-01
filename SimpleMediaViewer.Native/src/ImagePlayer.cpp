@@ -12,13 +12,10 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include "CONST.hpp"
 
 namespace
 {
-	constexpr bool HONOR_ANIMATION_LOOP_COUNT = true;
-	constexpr bool USE_NEAREST_NEIGHBOR_IMAGE_SCALING = true;
-
-
 	/// <summary>
 	/// WindowsのパスをSDL用のUTF-8文字列へ変換します。
 	/// </summary>
