@@ -25,22 +25,22 @@ namespace
 	/// </summary>
 	SDL_Surface* CreateAvifSurface(const avifImage* image)
 	{
-		if (image == nullptr || image->width == 0 || image->height == 0 ||
-			image->width > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
-			image->height > static_cast<uint32_t>(std::numeric_limits<int>::max()))
-		{
+		// AVIFの幅と高さがSDL_Surfaceの範囲内に収まるかを確認します。
+		if (image == nullptr || image->width == 0 || image->height == 0
+		 || image->width > static_cast<uint32_t>(std::numeric_limits<int>::max())
+		 ||	image->height > static_cast<uint32_t>(std::numeric_limits<int>::max())
+		) {
 			return nullptr;
 		}
 
-		SDL_Surface* surface = SDL_CreateSurface(
-			static_cast<int>(image->width),
-			static_cast<int>(image->height),
-			SDL_PIXELFORMAT_RGBA32);
+		// SDL_SurfaceをRGBA32形式で作成します。
+		SDL_Surface* surface = SDL_CreateSurface(static_cast<int>(image->width), static_cast<int>(image->height), SDL_PIXELFORMAT_RGBA32);
 		if (surface == nullptr)
 		{
 			return nullptr;
 		}
 
+		// AVIFのYUV画像をRGBAに変換します。
 		avifRGBImage rgbImage{};
 		avifRGBImageSetDefaults(&rgbImage, image);
 		rgbImage.format = AVIF_RGB_FORMAT_RGBA;
@@ -53,6 +53,7 @@ namespace
 			return nullptr;
 		}
 
+		// YUVからRGBへの変換を行い、結果をSDL_Surfaceに書き込みます。
 		const avifResult result = avifImageYUVToRGB(image, &rgbImage);
 		SDL_UnlockSurface(surface);
 		if (result != AVIF_RESULT_OK)
@@ -139,10 +140,11 @@ namespace
 	/// </summary>
 	Uint32 ReadBigEndian32(const Uint8* bytes)
 	{
-		return (static_cast<Uint32>(bytes[0]) << 24) |
-			(static_cast<Uint32>(bytes[1]) << 16) |
-			(static_cast<Uint32>(bytes[2]) << 8) |
-			static_cast<Uint32>(bytes[3]);
+		return 
+		   (static_cast<Uint32>(bytes[0]) << 24)
+		 | (static_cast<Uint32>(bytes[1]) << 16)
+		 | (static_cast<Uint32>(bytes[2]) << 8)
+		 | (static_cast<Uint32>(bytes[3]));
 	}
 
 
@@ -231,12 +233,14 @@ namespace
 	/// </summary>
 	bool TryCoalesceApngFrameData(const std::wstring& path, std::vector<Uint8>& normalizedData)
 	{
+		// fdATチャンクが複数フレームに分割されているかを確認します。
 		std::ifstream scan{ std::filesystem::path(path), std::ios::binary };
 		if (!scan)
 		{
 			return false;
 		}
 
+		// PNGシグネチャを確認します。
 		static constexpr std::array<Uint8, 8> PNG_SIGNATURE{ 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a };
 		std::array<Uint8, PNG_SIGNATURE.size()> signature{};
 		scan.read(reinterpret_cast<char*>(signature.data()), static_cast<std::streamsize>(signature.size()));
@@ -245,6 +249,7 @@ namespace
 			return false;
 		}
 
+		// PNGチャンクをスキャンして、fdATチャンクが複数フレームに分割されているかを確認します。
 		const Uint8* const fdatType = reinterpret_cast<const Uint8*>("fdAT");
 		const Uint8* const fctlType = reinterpret_cast<const Uint8*>("fcTL");
 		const Uint8* const iendType = reinterpret_cast<const Uint8*>("IEND");
@@ -253,6 +258,7 @@ namespace
 		bool hasEndChunk = false;
 		while (scan)
 		{
+			// チャンクのヘッダー（データサイズと種類）を読み取ります。
 			std::array<Uint8, 8> chunkHeader{};
 			scan.read(reinterpret_cast<char*>(chunkHeader.data()), static_cast<std::streamsize>(chunkHeader.size()));
 			if (scan.gcount() != static_cast<std::streamsize>(chunkHeader.size()))
@@ -260,6 +266,7 @@ namespace
 				return false;
 			}
 
+			// チャンクのデータサイズと種類を読み取ります。
 			const Uint32 dataSize = ReadBigEndian32(chunkHeader.data());
 			const Uint8* type = chunkHeader.data() + 4;
 			if (std::equal(type, type + 4, fctlType))
@@ -276,6 +283,7 @@ namespace
 				++frameDataChunkCount;
 			}
 
+			// IENDチャンクに到達したらループを終了します。
 			const bool isEndChunk = std::equal(type, type + 4, iendType);
 			scan.seekg(static_cast<std::streamoff>(dataSize) + 4, std::ios::cur);
 			if (!scan)
@@ -294,12 +302,14 @@ namespace
 			return false;
 		}
 
+		// fdATチャンクを結合してAPNGを再構成します。
 		std::ifstream file{ std::filesystem::path(path), std::ios::binary | std::ios::ate };
 		if (!file)
 		{
 			return false;
 		}
 
+		// ファイルサイズを確認します。
 		const std::streamoff fileSize = file.tellg();
 		if (fileSize < 8 || static_cast<unsigned long long>(fileSize) > std::numeric_limits<size_t>::max() ||
 			fileSize > std::numeric_limits<std::streamsize>::max())
@@ -307,6 +317,7 @@ namespace
 			return false;
 		}
 
+		//ファイル全体をメモリに読み込みます。
 		std::vector<Uint8> source(static_cast<size_t>(fileSize));
 		file.seekg(0, std::ios::beg);
 		file.read(reinterpret_cast<char*>(source.data()), static_cast<std::streamsize>(source.size()));
@@ -315,11 +326,13 @@ namespace
 			return false;
 		}
 
+		// PNGシグネチャを確認します。
 		if (!std::equal(PNG_SIGNATURE.begin(), PNG_SIGNATURE.end(), source.begin()))
 		{
 			return false;
 		}
 
+		// fdATチャンクを結合してAPNGを再構成します。
 		size_t offset = PNG_SIGNATURE.size();
 		normalizedData.assign(PNG_SIGNATURE.begin(), PNG_SIGNATURE.end());
 		normalizedData.reserve(source.size());
@@ -346,9 +359,11 @@ namespace
 			return appended;
 		};
 
+		// fdATチャンクを結合してAPNGを再構成します。
 		offset = PNG_SIGNATURE.size();
 		while (offset <= source.size() && source.size() - offset >= 12)
 		{
+			// チャンクのデータサイズ、種類、ペイロードを読み取ります。
 			const Uint32 dataSize = ReadBigEndian32(source.data() + offset);
 			const Uint8* type = source.data() + offset + 4;
 			const Uint8* payload = source.data() + offset + 8;
@@ -360,6 +375,7 @@ namespace
 				continue;
 			}
 
+			// fdATチャンク以外のチャンクが出現した場合、残っているフレームデータをfdATチャンクとして書き込みます。
 			if (!flushFrameData())
 			{
 				normalizedData.clear();
@@ -367,6 +383,7 @@ namespace
 			}
 			if (std::equal(type, type + 4, fctlType))
 			{
+				// fcTLチャンクのシーケンス番号をfdATチャンクに書き込みます。
 				if (dataSize < 4 || sequenceNumber > std::numeric_limits<Uint32>::max())
 				{
 					normalizedData.clear();
@@ -382,10 +399,12 @@ namespace
 			}
 			else
 			{
+				// fdATチャンク以外のチャンクはそのままコピーします。
 				const size_t chunkEnd = offset + static_cast<size_t>(dataSize) + 12;
 				normalizedData.insert(normalizedData.end(), source.begin() + offset, source.begin() + chunkEnd);
 			}
 
+			// IENDチャンクに到達したらループを終了します。
 			const bool isEndChunk = std::equal(type, type + 4, iendType);
 			offset += static_cast<size_t>(dataSize) + 12;
 			if (isEndChunk)
@@ -394,6 +413,7 @@ namespace
 			}
 		}
 
+		// 最後のフレームデータが残っている場合はfdATチャンクとして追加します。
 		if (!flushFrameData())
 		{
 			normalizedData.clear();
@@ -406,12 +426,9 @@ namespace
 	/// <summary>
 	/// 必要に応じてAPNG形式を明示してアニメーションデコーダーを作成します。
 	/// </summary>
-	IMG_AnimationDecoder* CreateAnimationDecoder(
-		const std::string& utf8Path,
-		const std::wstring& path,
-		bool isApng,
-		std::vector<Uint8>& animationData)
+	IMG_AnimationDecoder* CreateAnimationDecoder(const std::string& utf8Path, const std::wstring& path, bool isApng, std::vector<Uint8>& animationData)
 	{
+		// APNG形式を明示してアニメーションデコーダーを作成します。
 		if (!isApng)
 		{
 			return IMG_CreateAnimationDecoder(utf8Path.c_str());
@@ -433,12 +450,14 @@ namespace
 			return decoder;
 		}
 
+		// APNG形式を明示してアニメーションデコーダーを作成します。
 		const SDL_PropertiesID properties = SDL_CreateProperties();
 		if (properties == 0)
 		{
 			return nullptr;
 		}
 
+		// SDL3_imageのアニメーションデコーダーを作成します。
 		IMG_AnimationDecoder* decoder = nullptr;
 		const bool hasFilename = SDL_SetStringProperty(
 			properties,
@@ -465,31 +484,34 @@ bool ImagePlayer::Load(SDL_Renderer* renderer, const std::wstring& path)
 {
 	Clear();
 
+	// パスをUTF-8に変換します。
 	const std::string utf8Path = ToUtf8(path);
 	if (utf8Path.empty())
 	{
 		return false;
 	}
 
+	// AVIF形式のアニメーションを読み込みます。
 	if (IsAvifPath(path) && LoadAvifAnimation(renderer, path))
 	{
 		return true;
 	}
 
+	// アニメーション対応形式の画像を読み込みます。
 	if (SupportsAnimationDecoder(path) && LoadAnimation(renderer, utf8Path, path, IsApngPath(path)))
 	{
 		return true;
 	}
 
+	// 静止画をGPUテクスチャとして読み込みます。
 	texture_ = IMG_LoadTexture(renderer, utf8Path.c_str());
 	if (texture_ == nullptr)
 	{
 		return false;
 	}
-	SDL_SetTextureScaleMode(
-		texture_,
-		USE_NEAREST_NEIGHBOR_IMAGE_SCALING ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
+	SDL_SetTextureScaleMode(texture_, USE_NEAREST_NEIGHBOR_IMAGE_SCALING ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
 
+	// テクスチャの幅と高さを取得します。
 	float width = 0.0f;
 	float height = 0.0f;
 	if (!SDL_GetTextureSize(texture_, &width, &height) || width <= 0.0f || height <= 0.0f)
@@ -498,6 +520,7 @@ bool ImagePlayer::Load(SDL_Renderer* renderer, const std::wstring& path)
 		return false;
 	}
 
+	// 幅と高さを整数に変換して保持します。
 	width_ = static_cast<int>(width);
 	height_ = static_cast<int>(height);
 	return true;
@@ -509,6 +532,7 @@ bool ImagePlayer::Load(SDL_Renderer* renderer, const std::wstring& path)
 /// </summary>
 bool ImagePlayer::LoadAnimation(SDL_Renderer* renderer, const std::string& utf8Path, const std::wstring& path, bool isApng)
 {
+	// SDL3_imageのアニメーションデコーダーを作成します。
 	animationDecoder_ = CreateAnimationDecoder(utf8Path, path, isApng, animationData_);
 	if (animationDecoder_ == nullptr)
 	{
@@ -516,6 +540,7 @@ bool ImagePlayer::LoadAnimation(SDL_Renderer* renderer, const std::string& utf8P
 		return false;
 	}
 
+	// アニメーションのフレーム数とループ回数を取得します。
 	const SDL_PropertiesID properties = IMG_GetAnimationDecoderProperties(animationDecoder_);
 	const Sint64 expectedFrameCount = properties != 0
 		? SDL_GetNumberProperty(properties, IMG_PROP_METADATA_FRAME_COUNT_NUMBER, 0)
@@ -528,6 +553,7 @@ bool ImagePlayer::LoadAnimation(SDL_Renderer* renderer, const std::string& utf8P
 		loopCount_ = 0;
 	}
 
+	// 最初のフレームを読み込み、テクスチャとして設定します。
 	SDL_Surface* firstFrame = nullptr;
 	Uint64 firstFrameDuration = 0;
 	if (!IMG_GetAnimationDecoderFrame(animationDecoder_, &firstFrame, &firstFrameDuration) || firstFrame == nullptr ||
@@ -543,10 +569,12 @@ bool ImagePlayer::LoadAnimation(SDL_Renderer* renderer, const std::string& utf8P
 		return false;
 	}
 
+	// 最初のフレームの表示時間を設定し、次のフレームを先読みします。
 	frameDuration_ = std::max<Uint64>(firstFrameDuration, 1);
 	completedPlays_ = 1;
 	SDL_DestroySurface(firstFrame);
-
+	
+	// 次のフレームを読み込みます。	
 	if (!ReadNextFrame())
 	{
 		if (decoderComplete_ && expectedFrameCount > 1)
@@ -562,6 +590,7 @@ bool ImagePlayer::LoadAnimation(SDL_Renderer* renderer, const std::string& utf8P
 		return true;
 	}
 
+	// アニメーションの再生状態を初期化します。
 	renderer_ = renderer;
 	isAnimated_ = true;
 	isPlaying_ = true;
@@ -575,12 +604,14 @@ bool ImagePlayer::LoadAnimation(SDL_Renderer* renderer, const std::string& utf8P
 /// </summary>
 bool ImagePlayer::LoadAvifAnimation(SDL_Renderer* renderer, const std::wstring& path)
 {
+	// AVIFのバイナリデータをファイルから読み込みます。
 	std::ifstream file{ std::filesystem::path(path), std::ios::binary | std::ios::ate };
 	if (!file)
 	{
 		return false;
 	}
 
+	// ファイルサイズを確認し、バッファに読み込みます。
 	const std::streamoff fileSize = file.tellg();
 	if (fileSize <= 0 || static_cast<unsigned long long>(fileSize) > std::numeric_limits<size_t>::max() ||
 		fileSize > std::numeric_limits<std::streamsize>::max())
@@ -588,6 +619,7 @@ bool ImagePlayer::LoadAvifAnimation(SDL_Renderer* renderer, const std::wstring& 
 		return false;
 	}
 
+	// AVIFデータをバッファに読み込みます。
 	avifData_.resize(static_cast<size_t>(fileSize));
 	file.seekg(0, std::ios::beg);
 	file.read(reinterpret_cast<char*>(avifData_.data()), static_cast<std::streamsize>(avifData_.size()));
@@ -597,11 +629,12 @@ bool ImagePlayer::LoadAvifAnimation(SDL_Renderer* renderer, const std::wstring& 
 		return false;
 	}
 
+	// libavifのデコーダーを作成し、AVIFデータを解析します。
 	avifDecoder_ = avifDecoderCreate();
-	if (avifDecoder_ == nullptr ||
-		avifDecoderSetIOMemory(avifDecoder_, avifData_.data(), avifData_.size()) != AVIF_RESULT_OK ||
-		avifDecoderParse(avifDecoder_) != AVIF_RESULT_OK)
-	{
+	if ((avifDecoder_ == nullptr)
+	 || (avifDecoderSetIOMemory(avifDecoder_, avifData_.data(), avifData_.size()) != AVIF_RESULT_OK)
+	 || (avifDecoderParse(avifDecoder_) != AVIF_RESULT_OK)
+	) {
 		if (avifDecoder_ != nullptr)
 		{
 			avifDecoderDestroy(avifDecoder_);
@@ -611,6 +644,7 @@ bool ImagePlayer::LoadAvifAnimation(SDL_Renderer* renderer, const std::wstring& 
 		return false;
 	}
 
+	// アニメーションフレームが1つしかない場合は、デコーダーを破棄して終了します。
 	if (avifDecoder_->imageCount <= 1)
 	{
 		avifDecoderDestroy(avifDecoder_);
@@ -619,6 +653,7 @@ bool ImagePlayer::LoadAvifAnimation(SDL_Renderer* renderer, const std::wstring& 
 		return false;
 	}
 
+	// アニメーションのフレーム数とループ回数を取得します。
 	avifFrameCount_ = avifDecoder_->imageCount;
 	if (HONOR_ANIMATION_LOOP_COUNT && avifDecoder_->repetitionCount >= 0)
 	{
@@ -629,6 +664,7 @@ bool ImagePlayer::LoadAvifAnimation(SDL_Renderer* renderer, const std::wstring& 
 		loopCount_ = 0;
 	}
 
+	// 最初のフレームを読み込み、テクスチャとして設定します。
 	if (avifDecoderNextImage(avifDecoder_) != AVIF_RESULT_OK)
 	{
 		avifDecoderDestroy(avifDecoder_);
@@ -637,6 +673,7 @@ bool ImagePlayer::LoadAvifAnimation(SDL_Renderer* renderer, const std::wstring& 
 		return false;
 	}
 
+	// 最初のフレームをSDL_Surfaceに変換し、テクスチャとして設定します。
 	SDL_Surface* firstFrame = CreateAvifSurface(avifDecoder_->image);
 	if (firstFrame == nullptr || !SetTextureFromSurface(renderer, firstFrame))
 	{
@@ -651,6 +688,7 @@ bool ImagePlayer::LoadAvifAnimation(SDL_Renderer* renderer, const std::wstring& 
 	}
 	SDL_DestroySurface(firstFrame);
 
+	// 最初のフレームの表示時間を取得し、次のフレームを先読みします。
 	avifFramesDecoded_ = 1;
 	frameDuration_ = GetAvifFrameDuration(avifDecoder_);
 	completedPlays_ = 1;
@@ -662,6 +700,7 @@ bool ImagePlayer::LoadAvifAnimation(SDL_Renderer* renderer, const std::wstring& 
 		return true;
 	}
 
+	// アニメーションの再生状態を初期化します。
 	renderer_ = renderer;
 	isAnimated_ = true;
 	isPlaying_ = true;
@@ -675,11 +714,13 @@ bool ImagePlayer::LoadAvifAnimation(SDL_Renderer* renderer, const std::wstring& 
 /// </summary>
 bool ImagePlayer::ReadNextFrame()
 {
+	// SDL3_imageのアニメーションデコーダーから次のフレームを読み込みます。
 	if (avifDecoder_ != nullptr)
 	{
 		return ReadNextAvifFrame();
 	}
 
+	// SDL3_imageのアニメーションデコーダーから次のフレームを読み込みます。
 	if (!IMG_GetAnimationDecoderFrame(animationDecoder_, &pendingFrame_, &pendingFrameDuration_))
 	{
 		const IMG_AnimationDecoderStatus status = IMG_GetAnimationDecoderStatus(animationDecoder_);
@@ -703,18 +744,21 @@ bool ImagePlayer::ReadNextFrame()
 /// </summary>
 bool ImagePlayer::ReadNextAvifFrame()
 {
+	// AVIFデコーダーが存在しないか、すでにすべてのフレームを読み込んでいる場合は終了します。
 	if (avifDecoder_ == nullptr || avifFramesDecoded_ >= avifFrameCount_)
 	{
 		decoderComplete_ = true;
 		return false;
 	}
 
+	// 次のAVIFフレームを読み込みます。
 	if (avifDecoderNextImage(avifDecoder_) != AVIF_RESULT_OK)
 	{
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "AVIF frame decoding failed: %s", avifDecoder_->diag.error);
 		return false;
 	}
 
+	// 読み込んだAVIFフレームをSDL_Surfaceに変換します。
 	pendingFrame_ = CreateAvifSurface(avifDecoder_->image);
 	if (pendingFrame_ == nullptr)
 	{
@@ -732,20 +776,21 @@ bool ImagePlayer::ReadNextAvifFrame()
 /// </summary>
 bool ImagePlayer::SetTextureFromSurface(SDL_Renderer* renderer, SDL_Surface* surface)
 {
+	// サーフェスが有効でない場合は失敗します。
 	if (surface == nullptr || surface->w <= 0 || surface->h <= 0)
 	{
 		return false;
 	}
 
+	// サーフェスからテクスチャを作成します。
 	SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
 	if (texture == nullptr)
 	{
 		return false;
 	}
-	SDL_SetTextureScaleMode(
-		texture,
-		USE_NEAREST_NEIGHBOR_IMAGE_SCALING ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
+	SDL_SetTextureScaleMode(texture, USE_NEAREST_NEIGHBOR_IMAGE_SCALING ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
 
+	// 既存のテクスチャを破棄し、新しいテクスチャとサイズ情報を保持します。
 	if (texture_ != nullptr)
 	{
 		SDL_DestroyTexture(texture_);
@@ -762,11 +807,13 @@ bool ImagePlayer::SetTextureFromSurface(SDL_Renderer* renderer, SDL_Surface* sur
 /// </summary>
 bool ImagePlayer::AdvanceAnimation()
 {
+	// アニメーションが再生中でない場合、または次のフレーム表示時間に達していない場合は終了します。
 	if (!isPlaying_ || SDL_GetTicks() < nextFrameTime_)
 	{
 		return false;
 	}
 
+	// 現在のフレームを破棄し、次のフレームを読み込みます。
 	const Uint64 now = SDL_GetTicks();
 	if (pendingFrame_ != nullptr)
 	{
@@ -788,6 +835,7 @@ bool ImagePlayer::AdvanceAnimation()
 		return true;
 	}
 
+	// 次のフレームが読み込めなかった場合、デコーダーが完了しているか、ループ回数を超えているかを確認します。
 	if (!decoderComplete_)
 	{
 		isPlaying_ = false;
@@ -832,6 +880,7 @@ bool ImagePlayer::AdvanceAnimation()
 		return false;
 	}
 
+	// 最初のフレームを再度読み込み、テクスチャとして設定します。
 	SDL_Surface* firstFrame = nullptr;
 	Uint64 firstFrameDuration = 0;
 	if (!IMG_GetAnimationDecoderFrame(animationDecoder_, &firstFrame, &firstFrameDuration) || firstFrame == nullptr)
@@ -860,11 +909,13 @@ bool ImagePlayer::AdvanceAnimation()
 /// </summary>
 void ImagePlayer::TogglePause() noexcept
 {
+	// アニメーションデコーダーが存在しない場合、またはアニメーションが終了している場合は何もしません。
 	if ((animationDecoder_ == nullptr && avifDecoder_ == nullptr) || isEnded_)
 	{
 		return;
 	}
 
+	// 再生中の場合は残りのフレーム表示時間を計算し、再生を一時停止します。
 	if (isPlaying_)
 	{
 		const Uint64 now = SDL_GetTicks();

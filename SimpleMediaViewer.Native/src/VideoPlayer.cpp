@@ -21,11 +21,13 @@ bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 pla
 	frameEventType_ = frameEventType;
 	playbackEndedEventType_ = playbackEndedEventType;
 
+	// VLCのインスタンスを初期化します。
 	if (!EnsureLibVlcInitialized())
 	{
 		return false;
 	}
 
+	// パスをUTF-8に変換します。
 	const std::string utf8Path = [&path]()
 	{
 		const int length = WideCharToMultiByte(CP_UTF8, 0, path.c_str(), -1, nullptr, 0, nullptr, nullptr);
@@ -43,6 +45,7 @@ bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 pla
 		return false;
 	}
 
+	// VLCのメディアを作成し、ループ再生オプションを設定します。
 	libvlc_media_t* media = libvlc_media_new_path(instance_, utf8Path.c_str());
 	if (media == nullptr)
 	{
@@ -53,6 +56,7 @@ bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 pla
 		libvlc_media_add_option(media, ":input-repeat=-1");
 	}
 
+	// メディアプレーヤーを作成し、再生終了イベントのコールバックを登録します。
 	mediaPlayer_ = libvlc_media_player_new_from_media(media);
 	libvlc_media_release(media);
 	if (mediaPlayer_ == nullptr)
@@ -73,14 +77,17 @@ bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 pla
 		return false;
 	}
 
+	// 動画フレームのロックとアンロックを行うためのコールバックを設定し、SDL描画スレッドで共有可能な形式で再生します。
 	{
 		std::lock_guard lock(frameMutex_);
 		isShuttingDown_ = false;
 	}
 
+	// VLCの動画出力コールバックを設定し、SDL描画スレッドで共有可能な形式で再生します。
 	libvlc_video_set_callbacks(mediaPlayer_, LockVideoFrame, UnlockVideoFrame, DisplayVideoFrame, this);
 	libvlc_video_set_format_callbacks(mediaPlayer_, SetupVideoFormat, CleanupVideoFormat);
 
+	// 動画再生を開始します。再生開始に失敗した場合は、メディアプレーヤーを解放してfalseを返します。
 	if (libvlc_media_player_play(mediaPlayer_) != 0)
 	{
 		ReleaseMediaPlayer();
@@ -210,6 +217,7 @@ bool VideoPlayer::UpdateTexture()
 	unsigned pitch = 0;
 	std::uint64_t sequence = 0;
 
+	// 最新フレームの情報を取得し、アップロード可能な状態にする
 	{
 		std::lock_guard lock(frameMutex_);
 		if (latestFrameIndex_ < 0)
@@ -244,8 +252,8 @@ bool VideoPlayer::UpdateTexture()
 		textureHeight_ = texture_ != nullptr ? static_cast<int>(height) : 0;
 	}
 
+	// テクスチャが作成されていない場合はアップロードできない
 	const bool updated = texture_ != nullptr && SDL_UpdateTexture(texture_, nullptr, slot->pixels.data(), static_cast<int>(pitch));
-
 	{
 		std::lock_guard lock(frameMutex_);
 		slot->uploading = false;
@@ -336,10 +344,13 @@ bool VideoPlayer::EnsureLibVlcInitialized()
 /// </summary>
 void VideoPlayer::ReleaseMediaPlayer()
 {
+	// メディアプレーヤーが存在しない場合は何もしません。
 	if (mediaPlayer_ == nullptr)
 	{
 		return;
 	}
+
+	// 再生終了イベントのコールバックを解除します。
 	if (eventManager_ != nullptr && playbackCallbackContext_ != nullptr)
 	{
 		libvlc_event_detach(
@@ -350,17 +361,20 @@ void VideoPlayer::ReleaseMediaPlayer()
 		eventManager_ = nullptr;
 	}
 
+	// メディアプレーヤーを停止して解放します。
 	{
 		std::lock_guard lock(frameMutex_);
 		isShuttingDown_ = true;
 	}
 	frameCondition_.notify_all();
 
+	// メディアプレーヤーを停止して解放します。
 	libvlc_media_player_stop(mediaPlayer_);
 	libvlc_media_player_release(mediaPlayer_);
 	mediaPlayer_ = nullptr;
 	playbackCallbackContext_.reset();
 
+	// デコーダーのスロットをすべて解放し、フレーム情報をリセットします。
 	{
 		std::lock_guard lock(frameMutex_);
 		for (FrameSlot& slot : frameSlots_)
@@ -405,6 +419,7 @@ void VideoPlayer::NotifyPlaybackEnded(const libvlc_event_t*, void* opaque)
 /// </summary>
 unsigned VideoPlayer::SetupVideoFormat(void** opaque, char* chroma, unsigned* width, unsigned* height, unsigned* pitches, unsigned* lines)
 {
+	// VLCのコールバックに渡されたopaqueポインタをVideoPlayerインスタンスに変換します。
 	auto* player = static_cast<VideoPlayer*>(*opaque);
 	if (player == nullptr || width == nullptr || height == nullptr || pitches == nullptr || lines == nullptr ||
 		*width == 0 || *height == 0 || *width > MAX_VIDEO_DIMENSION || *height > MAX_VIDEO_DIMENSION)
@@ -412,15 +427,18 @@ unsigned VideoPlayer::SetupVideoFormat(void** opaque, char* chroma, unsigned* wi
 		return 0;
 	}
 
+	// 32バイト境界に揃えたピッチとライン数を計算し、SDL描画スレッドで共有可能なフレームスロットを確保します。
 	const std::uint64_t rowBytes = static_cast<std::uint64_t>(*width) * 4;
 	const std::uint64_t alignedPitch = (rowBytes + VIDEO_ALIGNMENT - 1) & ~(static_cast<std::uint64_t>(VIDEO_ALIGNMENT) - 1);
 	const std::uint64_t alignedLines = (static_cast<std::uint64_t>(*height) + VIDEO_ALIGNMENT - 1) & ~(static_cast<std::uint64_t>(VIDEO_ALIGNMENT) - 1);
-	if (alignedPitch > std::numeric_limits<unsigned>::max() || alignedLines > std::numeric_limits<unsigned>::max() ||
-		alignedPitch * alignedLines > std::numeric_limits<size_t>::max())
-	{
+	if (alignedPitch > std::numeric_limits<unsigned>::max()
+	 || alignedLines > std::numeric_limits<unsigned>::max()
+	 || alignedPitch * alignedLines > std::numeric_limits<size_t>::max()
+	) {
 		return 0;
 	}
 
+	// デコード済みスロットをすべて解放し、フレーム情報をリセットします。
 	std::unique_lock lock(player->frameMutex_);
 	player->isConfiguring_ = true;
 	player->frameCondition_.wait(lock, [player]()
@@ -432,6 +450,7 @@ unsigned VideoPlayer::SetupVideoFormat(void** opaque, char* chroma, unsigned* wi
 		});
 	});
 
+	// デコード済みスロットをすべて解放し、フレーム情報をリセットします。
 	try
 	{
 		const size_t bufferSize = static_cast<size_t>(alignedPitch * alignedLines);
@@ -455,6 +474,7 @@ unsigned VideoPlayer::SetupVideoFormat(void** opaque, char* chroma, unsigned* wi
 		return 0;
 	}
 
+	// VLCがデコードしたRV32フレームをSDLへ渡せるように設定します。
 	std::memcpy(chroma, "RV32", 4);
 	pitches[0] = static_cast<unsigned>(alignedPitch);
 	lines[0] = static_cast<unsigned>(alignedLines);
@@ -476,12 +496,14 @@ unsigned VideoPlayer::SetupVideoFormat(void** opaque, char* chroma, unsigned* wi
 /// </summary>
 void* VideoPlayer::LockVideoFrame(void* opaque, void** planes)
 {
+	// VLCのコールバックに渡されたopaqueポインタをVideoPlayerインスタンスに変換します。
 	auto* player = static_cast<VideoPlayer*>(opaque);
 	if (player == nullptr || planes == nullptr)
 	{
 		return nullptr;
 	}
 
+	// VLCがデコードしたRV32フレームをSDLへ渡せるように、未使用スロットを貸し出します。
 	std::unique_lock lock(player->frameMutex_);
 	player->frameCondition_.wait(lock, [player]()
 	{
@@ -500,6 +522,7 @@ void* VideoPlayer::LockVideoFrame(void* opaque, void** planes)
 		});
 	});
 
+	// VLCがデコードしたRV32フレームをSDLへ渡せるように、未使用スロットを貸し出します。
 	if (player->isShuttingDown_)
 	{
 		player->frameCondition_.wait(lock, [player]()
@@ -516,6 +539,7 @@ void* VideoPlayer::LockVideoFrame(void* opaque, void** planes)
 		return &player->shutdownFrameSlot_;
 	}
 
+	// デコード済みスロットの中から、最新フレーム以外で未使用のスロットを探し、VLCが直接ピクセルを書き込めるようにします。
 	for (size_t index = 0; index < player->frameSlots_.size(); ++index)
 	{
 		FrameSlot& slot = player->frameSlots_[index];
@@ -550,6 +574,8 @@ void VideoPlayer::DisplayVideoFrame(void* opaque, void* picture)
 	{
 		return;
 	}
+
+	// シャットダウンスロットの場合は、デコード終了を通知してSDLメインループへ戻ります。
 	if (slot == &player->shutdownFrameSlot_)
 	{
 		{
@@ -560,6 +586,7 @@ void VideoPlayer::DisplayVideoFrame(void* opaque, void* picture)
 		return;
 	}
 
+	// デコード済みスロットを最新フレームとして公開し、SDLメインループへ通知します。
 	{
 		std::lock_guard lock(player->frameMutex_);
 		const auto slotIndex = slot - player->frameSlots_.data();

@@ -20,6 +20,7 @@
 /// </summary>
 void FileManager::RefreshFolderFiles(const std::wstring& path)
 {
+	// フォルダーが変わっていなければ何もしません。
 	std::error_code error;
 	const std::filesystem::path absolutePath = std::filesystem::absolute(path, error).lexically_normal();
 	const std::filesystem::path sourcePath = error ? std::filesystem::path(path) : absolutePath;
@@ -29,6 +30,7 @@ void FileManager::RefreshFolderFiles(const std::wstring& path)
 		return;
 	}
 
+	// フォルダーが変わった場合は一覧をクリアし、非同期スキャンを開始します。
 	currentDirectory_ = directory;
 	fileList_.clear();
 	currentFileIndex_ = 0;
@@ -38,6 +40,7 @@ void FileManager::RefreshFolderFiles(const std::wstring& path)
 		return;
 	}
 
+	// フォルダー列挙と自然順ソートをバックグラウンドで開始します。
 	StartFolderScan(directory);
 }
 
@@ -57,11 +60,13 @@ void FileManager::SetCurrentFilePath(const std::wstring& path)
 /// </summary>
 void FileManager::ProcessPendingScan()
 {
+	// スキャンが完了していなければ何もしません。
 	if (!folderScanFuture_.valid() || folderScanFuture_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
 	{
 		return;
 	}
 
+	// スキャン結果を取得し、現在のフォルダーと一致する場合のみ一覧を更新します。
 	FolderScanResult result = folderScanFuture_.get();
 	if (result.directory == currentDirectory_)
 	{
@@ -69,6 +74,7 @@ void FileManager::ProcessPendingScan()
 		UpdateCurrentFileIndex();
 	}
 
+	// 次のスキャンが保留されている場合は、保留されたフォルダーで再度スキャンを開始します。
 	if (pendingFolderDirectory_.has_value())
 	{
 		std::wstring directory = std::move(*pendingFolderDirectory_);
@@ -137,6 +143,7 @@ std::vector<std::wstring> FileManager::EnumerateFolderFiles(const std::wstring& 
 			continue;
 		}
 
+		// 対応する拡張子のファイルのみを一覧に追加します。
 		std::wstring extension = entry.path().extension().wstring();
 		std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
 		if (std::find(SUPPORTED_EXTENSIONS.begin(), SUPPORTED_EXTENSIONS.end(), extension) != SUPPORTED_EXTENSIONS.end())
@@ -146,6 +153,7 @@ std::vector<std::wstring> FileManager::EnumerateFolderFiles(const std::wstring& 
 		error.clear();
 	}
 
+	// 自然順ソートを行います。
 	std::sort(files.begin(), files.end(), [](const std::wstring& left, const std::wstring& right)
 	{
 		const std::wstring leftName = std::filesystem::path(left).filename().wstring();

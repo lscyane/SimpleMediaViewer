@@ -8,9 +8,11 @@
 // -------------------------------------------------------------
 // メディア関連設定
 // -------------------------------------------------------------
+// サポートする画像形式の拡張子一覧
 inline static const std::array<std::wstring, 12> IMAGE_EXTENSIONS{
 	L".jpg", L".jpeg", L".png", L".apng", L".bmp", L".tif", L".tiff", L".gif", L".webp", L".avif", L".dib", L".jpe"
 };
+// サポートする動画形式の拡張子一覧
 inline static const std::array<std::wstring, 8> VIDEO_EXTENSIONS{
     L".webm", L".mp4", L".avi", L".mkv", L".mov", L".flv", L".wmv", L".mpeg"
 };
@@ -20,6 +22,7 @@ inline static const auto SUPPORTED_EXTENSIONS = [] {
 	std::copy(VIDEO_EXTENSIONS.begin(), VIDEO_EXTENSIONS.end(), extensions.begin() + IMAGE_EXTENSIONS.size());
 	return extensions;
 }();
+// アニメーションデコーダーに対応する拡張子一覧
 inline static const std::array<std::wstring, 4> ANIMATION_DECODER_EXTENSIONS{
 	L".gif", L".webp", L".png", L".apng"
 };
@@ -51,6 +54,10 @@ inline constexpr bool HONOR_ANIMATION_LOOP_COUNT = true;
 // true: 画像を拡大・縮小するとき最近傍補間を使う。
 // false: 線形補間を使う。
 inline constexpr bool USE_NEAREST_NEIGHBOR_IMAGE_SCALING = true;
+// モーションフォト用：XMPヘッダーの最大サイズ（バイト）。これを超える場合はXMPを読み取らない。
+inline constexpr std::size_t XMP_HEADER_LIMIT = 131072;
+// モーションフォト用：コピー用のバッファサイズ（バイト）。
+inline constexpr std::size_t COPY_BUFFER_SIZE = 64 * 1024;
 
 // -------------------------------------------------------------
 // 動画関連設定

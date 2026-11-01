@@ -14,7 +14,5 @@ public:
 	static std::optional<std::uint64_t> FindEmbeddedVideoOffset(const std::filesystem::path& jpegPath);
 
 	/// <summary>指定位置以降の埋め込み動画を一時MP4ファイルへ抽出します。</summary>
-	static std::optional<std::filesystem::path> ExtractEmbeddedVideo(
-		const std::filesystem::path& jpegPath,
-		std::uint64_t videoOffset);
+	static std::optional<std::filesystem::path> ExtractEmbeddedVideo(const std::filesystem::path& jpegPath,	std::uint64_t videoOffset);
 };

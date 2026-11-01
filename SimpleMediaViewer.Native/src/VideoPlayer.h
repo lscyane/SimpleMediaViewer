@@ -96,28 +96,51 @@ private:
 	/// <summary>デコード完了後のバッファを解放せず、表示コールバックまで予約状態を維持します。</summary>
 	static void UnlockVideoFrame(void* opaque, void* picture, void* const* planes);
 
+	// LibVLCインスタンスを保持します。
 	libvlc_instance_t* instance_ = nullptr;
+	// LibVLCのメディアプレーヤーを保持します。
 	libvlc_media_player_t* mediaPlayer_ = nullptr;
+	// LibVLCの再生終了を通知するイベントマネージャーを保持します。
 	libvlc_event_manager_t* eventManager_ = nullptr;
+	// LibVLCの再生終了を通知するコールバックコンテキストを保持します。
 	std::unique_ptr<PlaybackCallbackContext> playbackCallbackContext_;
+	// SDLイベントタイプを保持します。新しいフレームが描画可能になった際にメインループへ通知します。
 	SDL_Texture* texture_ = nullptr;
+	// VLCの再生終了を通知するSDLイベントタイプを保持します。
 	Uint32 frameEventType_ = 0;
+	// LibVLCの再生終了を通知するSDLイベントタイプを保持します。
 	Uint32 playbackEndedEventType_ = 0;
+	// 現在の再生世代を保持します。再生中の動画が停止されると、再生世代が増加します。
 	int playbackGeneration_ = 0;
+	// 動画テクスチャのピクセル幅を保持します。
 	int textureWidth_ = 0;
+	// 動画テクスチャのピクセル高さを保持します。
 	int textureHeight_ = 0;
 
+	// デコード済みスロットの状態を保護するミューテックス。SDL描画スレッドがフレームをアップロードする際に使用されます。
 	std::mutex frameMutex_;
+	// デコード済みスロットの状態を保護する条件変数。SDL描画スレッドがフレームをアップロードする際に使用されます。
 	std::condition_variable frameCondition_;
+	// デコード済みスロットを保持します。SDL描画スレッドがフレームをアップロードする際に使用されます。
 	std::array<FrameSlot, 3> frameSlots_{};
+	// シャットダウン時に使用する特別なフレームスロットを保持します。
 	FrameSlot shutdownFrameSlot_{};
+	// デコード済みスロットの中で、最新フレームとして公開されているスロットのインデックスを保持します。
 	int latestFrameIndex_ = -1;
+	// デコード済みスロットの中で、次に割り当てるフレームのシーケンス番号を保持します。
 	std::uint64_t nextSequence_ = 0;
+	// デコード済みスロットの中で、SDL描画スレッドが最後にアップロードしたフレームのシーケンス番号を保持します。
 	std::uint64_t uploadedSequence_ = 0;
+	// フレームのピクセル幅を保持します。VLCのSetupVideoFormatコールバックで使用されます。
 	unsigned frameWidth_ = 0;
+	// フレームのピクセル高さを保持します。VLCのSetupVideoFormatコールバックで使用されます。
 	unsigned frameHeight_ = 0;
+	// フレームのピッチを保持します。VLCのSetupVideoFormatコールバックで使用されます。
 	unsigned framePitch_ = 0;
+	// フレームスロットの設定中かどうかを保持します。VLCのSetupVideoFormatコールバックで使用されます。
 	bool isConfiguring_ = false;
+	// シャットダウン中かどうかを保持します。メディアプレーヤーの停止時にフレームスロットの解放を待機するために使用されます。
 	bool isShuttingDown_ = false;
+	// SDLレンダラーを保持します。描画操作を行う際に使用されます。
 	SDL_Renderer* renderer_ = nullptr;
 };

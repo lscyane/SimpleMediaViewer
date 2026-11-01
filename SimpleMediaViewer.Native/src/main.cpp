@@ -308,13 +308,16 @@ namespace
 
             switch (event.type)
             {
+			// SDL_EVENT_QUITとSDL_EVENT_WINDOW_CLOSE_REQUESTEDは、アプリケーションを終了するためのイベントです。isRunningフラグをfalseに設定して、メインループを終了させます。
             case SDL_EVENT_QUIT:
             case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
                 isRunning = false;
                 break;
+			// SDL_EVENT_WINDOW_FOCUS_GAINEDは、ウィンドウがフォーカスを取得したときに発生するイベントです。動画の再生制御キーの状態をリセットします。
             case SDL_EVENT_WINDOW_FOCUS_LOST:
                 ResetVideoControlKeys();
                 break;
+			// SDL_EVENT_KEY_DOWNは、キーが押されたときに発生するイベントです。動画の再生制御キーの状態を更新し、ESCキーでアプリケーションを終了、SPACEキーでアニメーションまたは動画の再生/一時停止を切り替え、左右キーで前後のファイルを開きます。
             case SDL_EVENT_KEY_DOWN:
                 if (HandleVideoControlKeyDown(event.key, needsRendering))
                 {
@@ -346,9 +349,11 @@ namespace
                     needsRendering = true;
                 }
                 break;
+			// SDL_EVENT_KEY_UPは、キーが離されたときに発生するイベントです。動画の再生制御キーの状態を更新します。
             case SDL_EVENT_KEY_UP:
                 HandleVideoControlKeyUp(event.key.scancode);
                 break;
+			// SDL_EVENT_MOUSE_BUTTON_DOWNは、マウスボタンが押されたときに発生するイベントです。右クリックでコンテキストメニューを表示し、左クリックでコンテキストメニューの項目を選択するか、パン操作を開始します。
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 if (event.button.button == SDL_BUTTON_RIGHT)
                 {
@@ -374,12 +379,14 @@ namespace
                     }
                 }
                 break;
+			// SDL_EVENT_MOUSE_BUTTON_UPは、マウスボタンが離されたときに発生するイベントです。左クリックでパン操作を終了します。
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
                     isPanning_ = false;
                 }
                 break;
+			// SDL_EVENT_MOUSE_MOTIONは、マウスが移動したときに発生するイベントです。パン操作中の場合は、マウスの移動量に応じて表示位置を更新します。
             case SDL_EVENT_MOUSE_MOTION:
                 if (isPanning_)
                 {
@@ -415,11 +422,13 @@ namespace
                 needsRendering = true;
                 break;
             }
+            // ウィンドウの表示内容が変更されたときに発生するイベントです。再描画が必要であることを示します。
             case SDL_EVENT_WINDOW_EXPOSED:
             case SDL_EVENT_WINDOW_RESIZED:
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
                 needsRendering = true;
                 break;
+			// SDL_EVENT_DROP_FILEは、ファイルがウィンドウにドラッグアンドドロップされたときに発生するイベントです。ドロップされたファイルのパスを取得し、OpenPath()を呼び出してファイルを開きます。
             case SDL_EVENT_DROP_FILE:
                 if (event.drop.data != nullptr)
                 {
@@ -500,18 +509,21 @@ namespace
                 return -1;
             }
 
+			// 音量表示の開始からの経過時間を計算する
             const Uint64 elapsed = SDL_GetTicks() - volumeDisplayStartTime_;
             if (elapsed < VOLUME_DISPLAY_DURATION_MS)
             {
                 return static_cast<int>(VOLUME_DISPLAY_DURATION_MS - elapsed);
             }
 
+			// 音量表示のフェードアウトが完了している場合は、-1を返す
             const Uint64 fadeElapsed = elapsed - VOLUME_DISPLAY_DURATION_MS;
             if (fadeElapsed >= VOLUME_FADE_DURATION_MS)
             {
                 return 0;
             }
 
+			// フェードアウト中の場合は、次のフレームまでの時間を計算して返す
             return static_cast<int>(std::min<Uint64>(
                 VOLUME_FADE_FRAME_INTERVAL_MS,
                 VOLUME_FADE_DURATION_MS - fadeElapsed));
@@ -721,6 +733,7 @@ namespace
                 return;
             }
 
+			// コンテキストメニューの位置とサイズをウィンドウの描画サイズに合わせてスケーリングする
             int windowWidth = 0;
             int windowHeight = 0;
             SDL_GetWindowSize(window_, &windowWidth, &windowHeight);
@@ -733,11 +746,13 @@ namespace
                 CONTEXT_MENU_ROW_HEIGHT * 4.0f * scaleY
             };
 
+			// コンテキストメニューの背景を半透明で描画する
             SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawColor(renderer_, 34, 34, 34, 238);
             SDL_RenderFillRect(renderer_, &panel);
             SDL_SetRenderDrawColor(renderer_, 240, 240, 240, 255);
 
+			// コンテキストメニューの項目を描画する
             constexpr std::array<const char*, 4> MENU_ITEMS{
                 "Fit to window", "Original size", "Play / pause", "Exit"
             };
@@ -846,8 +861,8 @@ namespace
                 videoControlKeyDownTimes_[index] = SDL_GetTicks();
                 PerformVideoControlAction(actionIndex, needsRendering);
             }
-            else if (key.repeat && videoControlKeysHeld_[index] &&
-                SDL_GetTicks() - videoControlKeyDownTimes_[index] >= VIDEO_KEY_REPEAT_DELAY_MS)
+            else if (key.repeat && videoControlKeysHeld_[index]
+             && SDL_GetTicks() - videoControlKeyDownTimes_[index] >= VIDEO_KEY_REPEAT_DELAY_MS)
             {
                 PerformVideoControlAction(actionIndex, needsRendering);
             }
@@ -999,14 +1014,15 @@ namespace
         /// </summary>
         bool TryPlayMotionPhoto(const std::wstring& path)
         {
+			// Motion Photoの動画部分のオフセットを取得する
             const std::optional<std::uint64_t> videoOffset = MotionPhotoHelper::FindEmbeddedVideoOffset(path);
             if (!videoOffset.has_value())
             {
                 return false;
             }
 
-            const std::optional<std::filesystem::path> extractedPath =
-                MotionPhotoHelper::ExtractEmbeddedVideo(path, *videoOffset);
+			// Motion Photoの動画部分を一時ファイルとして抽出する
+            const std::optional<std::filesystem::path> extractedPath = MotionPhotoHelper::ExtractEmbeddedVideo(path, *videoOffset);
             if (!extractedPath.has_value())
             {
                 return false;
@@ -1020,6 +1036,7 @@ namespace
                 return false;
             }
 
+			// 一時ファイルのパスを保持し、再生中フラグを設定する
             motionPhotoTempPath_ = *extractedPath;
             isMotionPhotoVideoPlaying_ = true;
             return true;
@@ -1065,32 +1082,57 @@ namespace
             MessageBoxW(nullptr, fullMessage.c_str(), L"SimpleMediaViewer", MB_OK | MB_ICONERROR);
         }
 
-
+		// SDLウィンドウを保持します。描画操作を行う際に使用されます。
         SDL_Window* window_ = nullptr;
+		// SDLレンダラーを保持します。描画操作を行う際に使用されます。
         SDL_Renderer* renderer_ = nullptr;
+		// 市松模様のSDLテクスチャを保持します。ウィンドウの背景として描画されます。
         SDL_Texture* checkerTexture_ = nullptr;
+		// 音量表示用のSDLテクスチャを保持します。音量変更時に日本語テキストを描画するために使用されます。
         SDL_Texture* volumeOverlayTexture_ = nullptr;
+		// SDLイベントの種類を保持します。LibVLCの動画再生中に発生するフレーム更新イベントを処理するために使用されます。
         Uint32 videoFrameEventType_ = 0;
+		// 動画再生終了イベントの種類を保持します。LibVLCの動画再生が終了した際に発生するイベントを処理するために使用されます。
         Uint32 videoPlaybackEndedEventType_ = 0;
+		// VideoPlayerクラスのインスタンスを保持します。動画ファイルを読み込み、再生する際に使用されます。
         VideoPlayer videoPlayer_;
+		// ImagePlayerクラスのインスタンスを保持します。画像ファイルを読み込み、表示する際に使用されます。
         ImagePlayer imagePlayer_;
+		// FileManagerクラスのインスタンスを保持します。現在のフォルダ内のファイル一覧を管理し、前後のファイルを開く際に使用されます。
         FileManager fileManager_;
+		// Motion Photoの動画部分を一時的に保存するパスを保持します。再生終了後に削除されます。
         std::filesystem::path motionPhotoTempPath_;
+		// ウィンドウの表示モードを保持します。trueの場合はウィンドウサイズに合わせて表示し、falseの場合は元のサイズで表示します。
         bool fitToWindow_ = true;
+		// ズーム操作中の倍率を保持します。マウスホイールでズーム操作を行う際に使用されます。
         float zoom_ = 1.0f;
+		// ズーム操作中のX座標のオフセットを保持します。マウスホイールでズーム操作を行う際に使用されます。
         float panX_ = 0.0f;
+		// パン操作中のX座標のオフセットを保持します。左クリックでパン操作を開始する際に使用されます。
         float panY_ = 0.0f;
+		// パン操作中かどうかを保持します。左クリックでパン操作を開始する際に使用されます。
         bool isPanning_ = false;
+		// コンテキストメニューが開いているかどうかを保持します。右クリックでコンテキストメニューを表示する際に使用されます。
         bool contextMenuOpen_ = false;
+		// Motion Photoの動画部分が再生中かどうかを保持します。再生終了後に一時ファイルを削除するために使用されます。
         bool isMotionPhotoVideoPlaying_ = false;
+		// 音量表示の値を保持します。-1の場合は表示しません。
         int volumeDisplayValue_ = -1;
+		// 音量表示の開始時刻を保持します。フェードアウトの進行度を計算するために使用されます。
         Uint64 volumeDisplayStartTime_ = 0;
+		// 音量表示テクスチャのピクセルデータを保持します。フェードアウト時に使用されます。
         std::vector<Uint8> volumeOverlayPixels_;
+		// 音量表示テクスチャのアルファ値を保持するマスクを作成します。フェードアウト時に使用されます。
         std::vector<Uint8> volumeOverlayAlphaMask_;
+		// 動画操作キーの押下状態を保持します。連続操作の判定に使用されます。
         std::array<bool, 4> videoControlKeysHeld_{};
+		// 動画操作キーの押下時刻を保持します。連続操作の開始判定に使用されます。
         std::array<Uint64, 4> videoControlKeyDownTimes_{};
+		// コンテキストメニューのX座標を保持します。右クリックでコンテキストメニューを表示する際に使用されます。
         float contextMenuX_ = 0.0f;
+		// コンテキストメニューのY座標を保持します。右クリックでコンテキストメニューを表示する際に使用されます。
         float contextMenuY_ = 0.0f;
+		// 現在開いているファイルの絶対パスを保持します。ウィンドウタイトルの更新や、前後のファイルを開く際に使用されます。
         std::wstring currentFilePath_;
     };
 }
