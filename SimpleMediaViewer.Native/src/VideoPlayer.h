@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+
 /// <summary>
 /// LibVLCの遅延初期化、動画フレーム受け渡し、SDLテクスチャ表示を担当します。
 /// VLCコールバックではSDLの描画APIを呼ばず、描画スレッドがテクスチャを更新します。

@@ -15,7 +15,10 @@ namespace
 	constexpr unsigned MAX_VIDEO_DIMENSION = 32768;
 }
 
-/// <summary>VLC初期化を遅延させ、指定動画をSDL描画スレッドと共有可能な出力形式で再生します。</summary>
+
+/// <summary>
+/// VLC初期化を遅延させ、指定動画をSDL描画スレッドと共有可能な出力形式で再生します。
+/// </summary>
 bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, const std::wstring& path)
 {
 	Stop();
@@ -74,7 +77,10 @@ bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, const std:
 	return true;
 }
 
-/// <summary>動画プレーヤーを止め、動画テクスチャを描画スレッドで解放します。</summary>
+
+/// <summary>
+/// 動画プレーヤーを止め、動画テクスチャを描画スレッドで解放します。
+/// </summary>
 void VideoPlayer::Stop()
 {
 	ReleaseMediaPlayer();
@@ -87,7 +93,10 @@ void VideoPlayer::Stop()
 	textureHeight_ = 0;
 }
 
-/// <summary>LibVLCインスタンスを含むすべての動画再生リソースを解放します。</summary>
+
+/// <summary>
+/// LibVLCインスタンスを含むすべての動画再生リソースを解放します。
+/// </summary>
 void VideoPlayer::Shutdown()
 {
 	Stop();
@@ -99,7 +108,10 @@ void VideoPlayer::Shutdown()
 	renderer_ = nullptr;
 }
 
-/// <summary>再生中の動画を一時停止または再開します。</summary>
+
+/// <summary>
+/// 再生中の動画を一時停止または再開します。
+/// </summary>
 void VideoPlayer::TogglePause()
 {
 	if (mediaPlayer_ == nullptr)
@@ -117,7 +129,10 @@ void VideoPlayer::TogglePause()
 	}
 }
 
-/// <summary>最新フレームをSDLテクスチャへ転送します。SDL操作は呼び出し元スレッド上だけで行います。</summary>
+
+/// <summary>
+/// 最新フレームをSDLテクスチャへ転送します。SDL操作は呼び出し元スレッド上だけで行います。
+/// </summary>
 bool VideoPlayer::UpdateTexture()
 {
 	FrameSlot* slot = nullptr;
@@ -175,19 +190,28 @@ bool VideoPlayer::UpdateTexture()
 	return updated;
 }
 
-/// <summary>動画テクスチャのピクセル幅を返します。</summary>
+
+/// <summary>
+/// 動画テクスチャのピクセル幅を返します。
+/// </summary>
 int VideoPlayer::Width() const noexcept
 {
 	return textureWidth_;
 }
 
-/// <summary>動画テクスチャのピクセル高さを返します。</summary>
+
+/// <summary>
+/// 動画テクスチャのピクセル高さを返します。
+/// </summary>
 int VideoPlayer::Height() const noexcept
 {
 	return textureHeight_;
 }
 
-/// <summary>指定された変換先矩形に動画テクスチャを描画します。</summary>
+
+/// <summary>
+/// 指定された変換先矩形に動画テクスチャを描画します。
+/// </summary>
 void VideoPlayer::Render(SDL_Renderer* renderer, const SDL_FRect& destination) const
 {
 	if (texture_ != nullptr)
@@ -196,13 +220,19 @@ void VideoPlayer::Render(SDL_Renderer* renderer, const SDL_FRect& destination) c
 	}
 }
 
-/// <summary>動画プレーヤーが現在存在し、停止処理中ではないかを返します。</summary>
+
+/// <summary>
+/// 動画プレーヤーが現在存在し、停止処理中ではないかを返します。
+/// </summary>
 bool VideoPlayer::IsActive() const noexcept
 {
 	return mediaPlayer_ != nullptr;
 }
 
-/// <summary>動画を開く要求までLibVLCインスタンスとプラグインパスの初期化を遅らせます。</summary>
+
+/// <summary>
+/// 動画を開く要求までLibVLCインスタンスとプラグインパスの初期化を遅らせます。
+/// </summary>
 bool VideoPlayer::EnsureLibVlcInitialized()
 {
 	if (instance_ != nullptr)
@@ -223,7 +253,10 @@ bool VideoPlayer::EnsureLibVlcInitialized()
 	return instance_ != nullptr;
 }
 
-/// <summary>デコーダーを停止してコールバック終了を待ち、メディアプレーヤーを解放します。</summary>
+
+/// <summary>
+/// デコーダーを停止してコールバック終了を待ち、メディアプレーヤーを解放します。
+/// </summary>
 void VideoPlayer::ReleaseMediaPlayer()
 {
 	if (mediaPlayer_ == nullptr)
@@ -259,7 +292,10 @@ void VideoPlayer::ReleaseMediaPlayer()
 	frameCondition_.notify_all();
 }
 
-/// <summary>VLCのRV32フレームをSDLへ渡せるよう寸法と32バイト境界のピッチを設定します。</summary>
+
+/// <summary>
+/// VLCのRV32フレームをSDLへ渡せるよう寸法と32バイト境界のピッチを設定します。
+/// </summary>
 unsigned VideoPlayer::SetupVideoFormat(void** opaque, char* chroma, unsigned* width, unsigned* height, unsigned* pitches, unsigned* lines)
 {
 	auto* player = static_cast<VideoPlayer*>(*opaque);
@@ -322,7 +358,10 @@ unsigned VideoPlayer::SetupVideoFormat(void** opaque, char* chroma, unsigned* wi
 	return static_cast<unsigned>(player->frameSlots_.size());
 }
 
-/// <summary>デコーダーに未使用スロットを貸し出し、VLCが直接ピクセルを書き込めるようにします。</summary>
+
+/// <summary>
+/// デコーダーに未使用スロットを貸し出し、VLCが直接ピクセルを書き込めるようにします。
+/// </summary>
 void* VideoPlayer::LockVideoFrame(void* opaque, void** planes)
 {
 	auto* player = static_cast<VideoPlayer*>(opaque);
@@ -368,12 +407,18 @@ void* VideoPlayer::LockVideoFrame(void* opaque, void** planes)
 	return nullptr;
 }
 
-/// <summary>描画コールバックまでフレームスロットを占有したままにします。</summary>
+
+/// <summary>
+/// 描画コールバックまでフレームスロットを占有したままにします。
+/// </summary>
 void VideoPlayer::UnlockVideoFrame(void*, void*, void* const*)
 {
 }
 
-/// <summary>デコード済みスロットを最新フレームとして公開し、SDLメインループへ通知します。</summary>
+
+/// <summary>
+/// デコード済みスロットを最新フレームとして公開し、SDLメインループへ通知します。
+/// </summary>
 void VideoPlayer::DisplayVideoFrame(void* opaque, void* picture)
 {
 	auto* player = static_cast<VideoPlayer*>(opaque);
@@ -398,7 +443,10 @@ void VideoPlayer::DisplayVideoFrame(void* opaque, void* picture)
 	player->NotifyFrameReady();
 }
 
-/// <summary>VLCが映像形式を破棄するときに、共有バッファを競合なく解放します。</summary>
+
+/// <summary>
+/// VLCが映像形式を破棄するときに、共有バッファを競合なく解放します。
+/// </summary>
 void VideoPlayer::CleanupVideoFormat(void* opaque)
 {
 	auto* player = static_cast<VideoPlayer*>(opaque);
@@ -429,7 +477,10 @@ void VideoPlayer::CleanupVideoFormat(void* opaque)
 	player->frameCondition_.notify_all();
 }
 
-/// <summary>VLCデコードスレッドからSDLイベントを積み、メインスレッドの描画待ちを解除します。</summary>
+
+/// <summary>
+/// VLCデコードスレッドからSDLイベントを積み、メインスレッドの描画待ちを解除します。
+/// </summary>
 void VideoPlayer::NotifyFrameReady() const
 {
 	if (frameEventType_ == 0 || frameEventType_ == static_cast<Uint32>(-1))

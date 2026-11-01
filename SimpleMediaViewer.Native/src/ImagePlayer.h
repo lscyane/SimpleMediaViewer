@@ -4,7 +4,10 @@
 
 #include <string>
 
-/// <summary>SDL3_imageで静止画をGPUテクスチャへ読み込み、描画用サイズを管理します。</summary>
+
+/// <summary>
+/// SDL3_imageで静止画をGPUテクスチャへ読み込み、描画用サイズを管理します。
+/// </summary>
 class ImagePlayer final
 {
 public:

@@ -6,7 +6,9 @@
 
 #include <string>
 
-/// <summary>画像パスをUTF-8化してSDL3_imageからGPUテクスチャとして読み込みます。</summary>
+/// <summary>
+/// 画像パスをUTF-8化してSDL3_imageからGPUテクスチャとして読み込みます。
+/// </summary>
 bool ImagePlayer::Load(SDL_Renderer* renderer, const std::wstring& path)
 {
 	Clear();
@@ -43,7 +45,10 @@ bool ImagePlayer::Load(SDL_Renderer* renderer, const std::wstring& path)
 	return true;
 }
 
-/// <summary>保持中のSDL画像テクスチャを破棄し、サイズ情報を初期化します。</summary>
+
+/// <summary>
+/// 保持中のSDL画像テクスチャを破棄し、サイズ情報を初期化します。
+/// </summary>
 void ImagePlayer::Clear()
 {
 	if (texture_ != nullptr)
@@ -55,25 +60,37 @@ void ImagePlayer::Clear()
 	height_ = 0;
 }
 
-/// <summary>画像テクスチャが読み込まれているかを返します。</summary>
+
+/// <summary>
+/// 画像テクスチャが読み込まれているかを返します。
+/// </summary>
 bool ImagePlayer::IsLoaded() const noexcept
 {
 	return texture_ != nullptr;
 }
 
-/// <summary>画像のピクセル幅を返します。</summary>
+
+/// <summary>
+/// 画像のピクセル幅を返します。
+/// </summary>
 int ImagePlayer::Width() const noexcept
 {
 	return width_;
 }
 
-/// <summary>画像のピクセル高さを返します。</summary>
+
+/// <summary>
+/// 画像のピクセル高さを返します。
+/// </summary>
 int ImagePlayer::Height() const noexcept
 {
 	return height_;
 }
 
-/// <summary>指定された変換先矩形に画像を描画します。</summary>
+
+/// <summary>
+/// 指定された変換先矩形に画像を描画します。
+/// </summary>
 void ImagePlayer::Render(SDL_Renderer* renderer, const SDL_FRect& destination) const
 {
 	if (texture_ != nullptr)
