@@ -327,7 +327,6 @@ namespace
                 {
                     OpenPath(ToWide(event.drop.data));
                     needsRendering = true;
-                    SDL_free(const_cast<char*>(event.drop.data));
                 }
                 break;
             default:
