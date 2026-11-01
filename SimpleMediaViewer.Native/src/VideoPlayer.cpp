@@ -55,6 +55,7 @@ bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 pla
 	{
 		return false;
 	}
+	libvlc_audio_set_volume(mediaPlayer_, VIDEO_INITIAL_VOLUME);
 	playbackCallbackContext_ = std::make_unique<PlaybackCallbackContext>(
 		PlaybackCallbackContext{ playbackEndedEventType_, playbackGeneration_ });
 	eventManager_ = libvlc_media_player_event_manager(mediaPlayer_);

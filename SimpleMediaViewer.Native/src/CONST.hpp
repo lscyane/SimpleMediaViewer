@@ -33,6 +33,8 @@ inline constexpr bool USE_NEAREST_NEIGHBOR_IMAGE_SCALING = true;
 // -------------------------------------------------------------
 // 動画関連設定
 // -------------------------------------------------------------
+// 動画再生時の初期音量（0～100）。
+inline constexpr int VIDEO_INITIAL_VOLUME = 0;
 // 動画フレームのピッチと高さを切り上げるアラインメント幅（バイト）。
 inline constexpr unsigned VIDEO_ALIGNMENT = 32;
 // 動画として受け入れる幅・高さの上限（ピクセル）。超える寸法は拒否する。
