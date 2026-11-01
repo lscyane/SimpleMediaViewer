@@ -36,9 +36,9 @@ GIF/WebPのアニメーション再生は対象外で、静止フレーム表示
 
 ユーザーがVisual StudioでNativeをスタートアップに切り替え、Release x64ビルドを実行。ビルド出力は成功:
 
-`SimpleMediaViewer.vcxproj -> artifacts\SimpleMediaViewer\x64\Release\SimpleMediaViewer.exe`
+`SimpleMediaViewer.vcxproj -> SimpleMediaViewer.Native\bin\x64\Release\SimpleMediaViewer.exe`
 
-出力先 `artifacts\SimpleMediaViewer\x64\Release` に以下を確認:
+出力先 `SimpleMediaViewer.Native\bin\x64\Release` に以下を確認:
 
 - `SimpleMediaViewer.exe`, `SDL3.dll`, `SDL3_image.dll`, `libvlc.dll`, `libvlccore.dll`
 - `plugins`（323ファイル）, `hrtfs`（1ファイル）, `lua`（94ファイル）
