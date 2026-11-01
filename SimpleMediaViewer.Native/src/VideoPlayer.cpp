@@ -14,11 +14,12 @@
 /// <summary>
 /// VLC初期化を遅延させ、指定動画をSDL描画スレッドと共有可能な出力形式で再生します。
 /// </summary>
-bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, const std::wstring& path)
+bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 playbackEndedEventType, const std::wstring& path)
 {
 	Stop();
 	renderer_ = renderer;
 	frameEventType_ = frameEventType;
+	playbackEndedEventType_ = playbackEndedEventType;
 
 	if (!EnsureLibVlcInitialized())
 	{
@@ -54,6 +55,18 @@ bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, const std:
 	{
 		return false;
 	}
+	playbackCallbackContext_ = std::make_unique<PlaybackCallbackContext>(
+		PlaybackCallbackContext{ playbackEndedEventType_, playbackGeneration_ });
+	eventManager_ = libvlc_media_player_event_manager(mediaPlayer_);
+	if (eventManager_ == nullptr || libvlc_event_attach(
+		eventManager_,
+		libvlc_MediaPlayerEndReached,
+		NotifyPlaybackEnded,
+		playbackCallbackContext_.get()) != 0)
+	{
+		ReleaseMediaPlayer();
+		return false;
+	}
 
 	{
 		std::lock_guard lock(frameMutex_);
@@ -79,6 +92,7 @@ bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, const std:
 void VideoPlayer::Stop()
 {
 	ReleaseMediaPlayer();
+	playbackGeneration_ = playbackGeneration_ == std::numeric_limits<int>::max() ? 1 : playbackGeneration_ + 1;
 	if (texture_ != nullptr)
 	{
 		SDL_DestroyTexture(texture_);
@@ -226,6 +240,15 @@ bool VideoPlayer::IsActive() const noexcept
 
 
 /// <summary>
+/// 現在の再生世代を返します。
+/// </summary>
+int VideoPlayer::PlaybackGeneration() const noexcept
+{
+	return playbackGeneration_;
+}
+
+
+/// <summary>
 /// 動画を開く要求までLibVLCインスタンスとプラグインパスの初期化を遅らせます。
 /// </summary>
 bool VideoPlayer::EnsureLibVlcInitialized()
@@ -258,6 +281,15 @@ void VideoPlayer::ReleaseMediaPlayer()
 	{
 		return;
 	}
+	if (eventManager_ != nullptr && playbackCallbackContext_ != nullptr)
+	{
+		libvlc_event_detach(
+			eventManager_,
+			libvlc_MediaPlayerEndReached,
+			NotifyPlaybackEnded,
+			playbackCallbackContext_.get());
+		eventManager_ = nullptr;
+	}
 
 	{
 		std::lock_guard lock(frameMutex_);
@@ -268,6 +300,7 @@ void VideoPlayer::ReleaseMediaPlayer()
 	libvlc_media_player_stop(mediaPlayer_);
 	libvlc_media_player_release(mediaPlayer_);
 	mediaPlayer_ = nullptr;
+	playbackCallbackContext_.reset();
 
 	{
 		std::lock_guard lock(frameMutex_);
@@ -277,6 +310,8 @@ void VideoPlayer::ReleaseMediaPlayer()
 			slot.uploading = false;
 			slot.pixels.clear();
 		}
+		shutdownFrameSlot_.decoding = false;
+		shutdownFrameSlot_.pixels.clear();
 		latestFrameIndex_ = -1;
 		frameWidth_ = 0;
 		frameHeight_ = 0;
@@ -285,6 +320,24 @@ void VideoPlayer::ReleaseMediaPlayer()
 		isShuttingDown_ = false;
 	}
 	frameCondition_.notify_all();
+}
+
+
+/// <summary>
+/// LibVLCの終了通知を描画処理なしでSDLイベントキューへ追加します。
+/// </summary>
+void VideoPlayer::NotifyPlaybackEnded(const libvlc_event_t*, void* opaque)
+{
+	const auto* context = static_cast<const PlaybackCallbackContext*>(opaque);
+	if (context == nullptr || context->eventType == 0 || context->eventType == static_cast<Uint32>(-1))
+	{
+		return;
+	}
+
+	SDL_Event event{};
+	event.type = context->eventType;
+	event.user.code = context->generation;
+	SDL_PushEvent(&event);
 }
 
 
@@ -313,7 +366,8 @@ unsigned VideoPlayer::SetupVideoFormat(void** opaque, char* chroma, unsigned* wi
 	player->isConfiguring_ = true;
 	player->frameCondition_.wait(lock, [player]()
 	{
-		return std::none_of(player->frameSlots_.begin(), player->frameSlots_.end(), [](const FrameSlot& slot)
+		return !player->shutdownFrameSlot_.decoding &&
+			std::none_of(player->frameSlots_.begin(), player->frameSlots_.end(), [](const FrameSlot& slot)
 		{
 			return slot.decoding || slot.uploading;
 		});
@@ -329,6 +383,10 @@ unsigned VideoPlayer::SetupVideoFormat(void** opaque, char* chroma, unsigned* wi
 			slot.uploading = false;
 			slot.sequence = 0;
 		}
+		player->shutdownFrameSlot_.pixels.assign(bufferSize, 0);
+		player->shutdownFrameSlot_.decoding = false;
+		player->shutdownFrameSlot_.uploading = false;
+		player->shutdownFrameSlot_.sequence = 0;
 	}
 	catch (...)
 	{
@@ -385,7 +443,18 @@ void* VideoPlayer::LockVideoFrame(void* opaque, void** planes)
 
 	if (player->isShuttingDown_)
 	{
-		return nullptr;
+		player->frameCondition_.wait(lock, [player]()
+		{
+			return !player->shutdownFrameSlot_.decoding;
+		});
+		if (player->shutdownFrameSlot_.pixels.empty())
+		{
+			return nullptr;
+		}
+
+		player->shutdownFrameSlot_.decoding = true;
+		planes[0] = player->shutdownFrameSlot_.pixels.data();
+		return &player->shutdownFrameSlot_;
 	}
 
 	for (size_t index = 0; index < player->frameSlots_.size(); ++index)
@@ -422,6 +491,15 @@ void VideoPlayer::DisplayVideoFrame(void* opaque, void* picture)
 	{
 		return;
 	}
+	if (slot == &player->shutdownFrameSlot_)
+	{
+		{
+			std::lock_guard lock(player->frameMutex_);
+			slot->decoding = false;
+		}
+		player->frameCondition_.notify_all();
+		return;
+	}
 
 	{
 		std::lock_guard lock(player->frameMutex_);
@@ -454,7 +532,8 @@ void VideoPlayer::CleanupVideoFormat(void* opaque)
 	player->isConfiguring_ = true;
 	player->frameCondition_.wait(lock, [player]()
 	{
-		return std::none_of(player->frameSlots_.begin(), player->frameSlots_.end(), [](const FrameSlot& slot)
+		return !player->shutdownFrameSlot_.decoding &&
+			std::none_of(player->frameSlots_.begin(), player->frameSlots_.end(), [](const FrameSlot& slot)
 		{
 			return slot.decoding || slot.uploading;
 		});

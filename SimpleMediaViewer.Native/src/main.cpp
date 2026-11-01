@@ -6,6 +6,7 @@
 #include "CONST.hpp"
 #include "FileManager.h"
 #include "ImagePlayer.h"
+#include "MotionPhotoHelper.h"
 #include "VideoPlayer.h"
 #include <Windows.h>
 #include <shellapi.h>
@@ -13,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <cwctype>
 #include <filesystem>
 #include <optional>
@@ -103,12 +105,13 @@ namespace
                 return false;
             }
 
-            videoFrameEventType_ = SDL_RegisterEvents(1);
+            videoFrameEventType_ = SDL_RegisterEvents(2);
             if (videoFrameEventType_ == static_cast<Uint32>(-1))
             {
                 ShowSdlError(L"動画フレームイベントの登録に失敗しました");
                 return false;
             }
+            videoPlaybackEndedEventType_ = videoFrameEventType_ + 1;
 
             window_ = SDL_CreateWindow(
                 "SimpleMediaViewer",
@@ -202,6 +205,7 @@ namespace
         void Shutdown()
         {
             videoPlayer_.Shutdown();
+            CleanupMotionPhotoTempFile();
             imagePlayer_.Clear();
             if (checkerTexture_ != nullptr)
             {
@@ -272,6 +276,17 @@ namespace
             {
                 videoPlayer_.UpdateTexture();
                 needsRendering = true;
+                return;
+            }
+            if (event.type == videoPlaybackEndedEventType_)
+            {
+                if (isMotionPhotoVideoPlaying_ && event.user.code == videoPlayer_.PlaybackGeneration())
+                {
+                    videoPlayer_.Stop();
+                    isMotionPhotoVideoPlaying_ = false;
+                    CleanupMotionPhotoTempFile();
+                    needsRendering = true;
+                }
                 return;
             }
 
@@ -384,8 +399,10 @@ namespace
             int outputHeight = 0;
             if (SDL_GetRenderOutputSize(renderer_, &outputWidth, &outputHeight))
             {
-                const int mediaWidth = imagePlayer_.IsLoaded() ? imagePlayer_.Width() : videoPlayer_.Width();
-                const int mediaHeight = imagePlayer_.IsLoaded() ? imagePlayer_.Height() : videoPlayer_.Height();
+                const bool renderVideo = videoPlayer_.IsActive() &&
+                    (!imagePlayer_.IsLoaded() || (videoPlayer_.Width() > 0 && videoPlayer_.Height() > 0));
+                const int mediaWidth = renderVideo ? videoPlayer_.Width() : imagePlayer_.Width();
+                const int mediaHeight = renderVideo ? videoPlayer_.Height() : imagePlayer_.Height();
                 if (mediaWidth > 0 && mediaHeight > 0)
                 {
                     const float fitScale = std::min(
@@ -400,13 +417,13 @@ namespace
                         width,
                         height
                     };
-                    if (imagePlayer_.IsLoaded())
-                    {
-                        imagePlayer_.Render(renderer_, destination);
-                    }
-                    else
+                    if (renderVideo)
                     {
                         videoPlayer_.Render(renderer_, destination);
+                    }
+                    else if (imagePlayer_.IsLoaded())
+                    {
+                        imagePlayer_.Render(renderer_, destination);
                     }
                 }
             }
@@ -535,6 +552,8 @@ namespace
             fileManager_.SetCurrentFilePath(currentFilePath_);
             UpdateWindowTitle();
             videoPlayer_.Stop();
+            isMotionPhotoVideoPlaying_ = false;
+            CleanupMotionPhotoTempFile();
             imagePlayer_.Clear();
             fitToWindow_ = true;
             zoom_ = 1.0f;
@@ -551,7 +570,7 @@ namespace
             };
             if (std::find(VIDEO_EXTENSIONS.begin(), VIDEO_EXTENSIONS.end(), extension) != VIDEO_EXTENSIONS.end())
             {
-                if (!videoPlayer_.Play(renderer_, videoFrameEventType_, path))
+                if (!videoPlayer_.Play(renderer_, videoFrameEventType_, videoPlaybackEndedEventType_, path))
                 {
                     MessageBoxW(nullptr,
                         L"動画を開けませんでした。LibVLCの初期化またはメディアの読込に失敗しました。",
@@ -564,7 +583,58 @@ namespace
                 {
                     MessageBoxW(nullptr, L"画像を開けませんでした。", L"SimpleMediaViewer", MB_OK | MB_ICONERROR);
                 }
+                else if (extension == L".jpg" || extension == L".jpeg")
+                {
+                    TryPlayMotionPhoto(path);
+                }
             }
+        }
+
+
+        /// <summary>
+        /// Motion Photoの動画部分を抽出して一度だけ再生します。
+        /// </summary>
+        bool TryPlayMotionPhoto(const std::wstring& path)
+        {
+            const std::optional<std::uint64_t> videoOffset = MotionPhotoHelper::FindEmbeddedVideoOffset(path);
+            if (!videoOffset.has_value())
+            {
+                return false;
+            }
+
+            const std::optional<std::filesystem::path> extractedPath =
+                MotionPhotoHelper::ExtractEmbeddedVideo(path, *videoOffset);
+            if (!extractedPath.has_value())
+            {
+                return false;
+            }
+
+            if (!videoPlayer_.Play(renderer_, videoFrameEventType_, videoPlaybackEndedEventType_, extractedPath->wstring()))
+            {
+                std::error_code removeError;
+                std::filesystem::remove(*extractedPath, removeError);
+                return false;
+            }
+
+            motionPhotoTempPath_ = *extractedPath;
+            isMotionPhotoVideoPlaying_ = true;
+            return true;
+        }
+
+
+        /// <summary>
+        /// Motion Photoから抽出した一時動画を削除します。
+        /// </summary>
+        void CleanupMotionPhotoTempFile()
+        {
+            if (motionPhotoTempPath_.empty())
+            {
+                return;
+            }
+
+            std::error_code removeError;
+            std::filesystem::remove(motionPhotoTempPath_, removeError);
+            motionPhotoTempPath_.clear();
         }
 
 
@@ -596,15 +666,18 @@ namespace
         SDL_Renderer* renderer_ = nullptr;
         SDL_Texture* checkerTexture_ = nullptr;
         Uint32 videoFrameEventType_ = 0;
+        Uint32 videoPlaybackEndedEventType_ = 0;
         VideoPlayer videoPlayer_;
         ImagePlayer imagePlayer_;
         FileManager fileManager_;
+        std::filesystem::path motionPhotoTempPath_;
         bool fitToWindow_ = true;
         float zoom_ = 1.0f;
         float panX_ = 0.0f;
         float panY_ = 0.0f;
         bool isPanning_ = false;
         bool contextMenuOpen_ = false;
+        bool isMotionPhotoVideoPlaying_ = false;
         float contextMenuX_ = 0.0f;
         float contextMenuY_ = 0.0f;
         std::wstring currentFilePath_;

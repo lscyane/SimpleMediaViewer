@@ -6,6 +6,7 @@
 #include <array>
 #include <condition_variable>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -19,7 +20,7 @@ class VideoPlayer final
 {
 public:
 	/// <summary>最初の動画再生要求時にLibVLCを初期化して動画を再生します。</summary>
-	bool Play(SDL_Renderer* renderer, Uint32 frameEventType, const std::wstring& path);
+	bool Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 playbackEndedEventType, const std::wstring& path);
 
 	/// <summary>現在の動画再生を停止し、動画テクスチャを破棄します。</summary>
 	void Stop();
@@ -45,7 +46,16 @@ public:
 	/// <summary>動画が再生中かどうかを返します。</summary>
 	bool IsActive() const noexcept;
 
+	/// <summary>現在の再生世代を返します。</summary>
+	int PlaybackGeneration() const noexcept;
+
 private:
+	struct PlaybackCallbackContext
+	{
+		Uint32 eventType = 0;
+		int generation = 0;
+	};
+
 	struct FrameSlot
 	{
 		std::vector<Uint8> pixels;
@@ -74,20 +84,27 @@ private:
 
 	/// <summary>SDLイベントをスレッドセーフに積み、メインループを新フレーム待ちから復帰させます。</summary>
 	void NotifyFrameReady() const;
+	/// <summary>LibVLCの再生終了をSDLイベントでメインループへ通知します。</summary>
+	static void NotifyPlaybackEnded(const libvlc_event_t* event, void* opaque);
 
 	/// <summary>デコード完了後のバッファを解放せず、表示コールバックまで予約状態を維持します。</summary>
 	static void UnlockVideoFrame(void* opaque, void* picture, void* const* planes);
 
 	libvlc_instance_t* instance_ = nullptr;
 	libvlc_media_player_t* mediaPlayer_ = nullptr;
+	libvlc_event_manager_t* eventManager_ = nullptr;
+	std::unique_ptr<PlaybackCallbackContext> playbackCallbackContext_;
 	SDL_Texture* texture_ = nullptr;
 	Uint32 frameEventType_ = 0;
+	Uint32 playbackEndedEventType_ = 0;
+	int playbackGeneration_ = 0;
 	int textureWidth_ = 0;
 	int textureHeight_ = 0;
 
 	std::mutex frameMutex_;
 	std::condition_variable frameCondition_;
 	std::array<FrameSlot, 3> frameSlots_{};
+	FrameSlot shutdownFrameSlot_{};
 	int latestFrameIndex_ = -1;
 	std::uint64_t nextSequence_ = 0;
 	std::uint64_t uploadedSequence_ = 0;
