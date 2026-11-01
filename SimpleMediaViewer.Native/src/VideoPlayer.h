@@ -31,6 +31,12 @@ public:
 	/// <summary>再生中の動画を一時停止または再開します。</summary>
 	void TogglePause();
 
+	/// <summary>シーク可能な動画を指定秒数だけ前後へシークします。</summary>
+	void SeekBySeconds(int seconds);
+
+	/// <summary>再生中の動画の音量を指定量だけ変更します。</summary>
+	int AdjustVolume(int amount);
+
 	/// <summary>新しいVLCフレームがあればSDLテクスチャをメインスレッドで更新します。</summary>
 	bool UpdateTexture();
 

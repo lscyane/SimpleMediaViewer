@@ -141,6 +141,60 @@ void VideoPlayer::TogglePause()
 
 
 /// <summary>
+/// シーク可能な動画を指定秒数だけ前後へシークします。
+/// </summary>
+void VideoPlayer::SeekBySeconds(int seconds)
+{
+	if (mediaPlayer_ == nullptr || !libvlc_media_player_is_seekable(mediaPlayer_))
+	{
+		return;
+	}
+
+	const libvlc_time_t currentTime = libvlc_media_player_get_time(mediaPlayer_);
+	if (currentTime < 0)
+	{
+		return;
+	}
+
+	const libvlc_time_t offset = static_cast<libvlc_time_t>(seconds) * 1000;
+	const libvlc_time_t duration = libvlc_media_player_get_length(mediaPlayer_);
+	libvlc_time_t targetTime = std::max<libvlc_time_t>(0, currentTime + offset);
+	if (duration >= 0)
+	{
+		targetTime = std::min(targetTime, duration);
+	}
+	libvlc_media_player_set_time(mediaPlayer_, targetTime);
+}
+
+
+/// <summary>
+/// 再生中の動画の音量を0～100の範囲で変更します。
+/// </summary>
+int VideoPlayer::AdjustVolume(int amount)
+{
+	if (mediaPlayer_ == nullptr)
+	{
+		return -1;	// 再生中の動画がない場合は音量を変更できない
+	}
+
+	const int currentVolume = libvlc_audio_get_volume(mediaPlayer_);
+	if (currentVolume < 0)
+	{
+		return -1;	// 音量取得に失敗した場合は音量を変更できない
+	}
+
+	// 変更後の音量を0～100の範囲に制限して設定する
+	const int targetVolume = std::clamp(currentVolume + amount, 0, 100);
+	if (libvlc_audio_set_volume(mediaPlayer_, targetVolume) != 0)
+	{
+		return -1;
+	}
+
+	return targetVolume;
+}
+
+
+/// <summary>
 /// 最新フレームをSDLテクスチャへ転送します。SDL操作は呼び出し元スレッド上だけで行います。
 /// </summary>
 bool VideoPlayer::UpdateTexture()

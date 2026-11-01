@@ -35,6 +35,23 @@ inline constexpr bool USE_NEAREST_NEIGHBOR_IMAGE_SCALING = true;
 // -------------------------------------------------------------
 // 動画再生時の初期音量（0～100）。
 inline constexpr int VIDEO_INITIAL_VOLUME = 0;
+// 動画のシーク時に前後する秒数。
+inline constexpr int VIDEO_SEEK_SECONDS = 10;
+// 動画操作キーを押し続けた場合に連続操作を開始するまでの時間（ミリ秒）。
+inline constexpr Uint64 VIDEO_KEY_REPEAT_DELAY_MS = 500;
+// 動画の音量操作1回あたりの変更量（0～100）。
+inline constexpr int VIDEO_VOLUME_STEP = 5;
+// 音量表示を完全な不透明度で維持する時間（ミリ秒）。
+inline constexpr Uint64 VOLUME_DISPLAY_DURATION_MS = 1000;
+// 音量表示のフェードアウト時間（ミリ秒）。
+inline constexpr Uint64 VOLUME_FADE_DURATION_MS = 500;
+// フェード表示を更新する間隔（ミリ秒）。
+inline constexpr int VOLUME_FADE_FRAME_INTERVAL_MS = 16;
+// 音量表示テクスチャの幅・高さ（ピクセル）。
+inline constexpr int VOLUME_OVERLAY_WIDTH = 220;
+inline constexpr int VOLUME_OVERLAY_HEIGHT = 56;
+// 音量表示をウィンドウ端から離す余白（ピクセル）。
+inline constexpr int VOLUME_OVERLAY_MARGIN = 24;
 // 動画フレームのピッチと高さを切り上げるアラインメント幅（バイト）。
 inline constexpr unsigned VIDEO_ALIGNMENT = 32;
 // 動画として受け入れる幅・高さの上限（ピクセル）。超える寸法は拒否する。

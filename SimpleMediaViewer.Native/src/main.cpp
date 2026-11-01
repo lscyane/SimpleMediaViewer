@@ -19,6 +19,8 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #pragma comment(lib, "Shell32.lib")
 
@@ -164,6 +166,7 @@ namespace
                 SDL_Event event{};
                 if (!needsRendering)
                 {
+					// 描画が不要な場合は、SDL_WaitEventTimeoutで待機する
                     int waitTimeout = fileManager_.IsScanPending() ? 20 : -1;
                     const int animationTimeout = imagePlayer_.MillisecondsUntilNextFrame();
                     if (animationTimeout >= 0)
@@ -171,20 +174,32 @@ namespace
                         waitTimeout = waitTimeout < 0 ? animationTimeout : std::min(waitTimeout, animationTimeout);
                     }
 
-                    const bool receivedEvent = waitTimeout < 0
-                        ? SDL_WaitEvent(&event)
-                        : SDL_WaitEventTimeout(&event, waitTimeout);
+					// 音量表示のフェードアウト更新を待つ時間を計算する
+                    const int volumeOverlayTimeout = MillisecondsUntilVolumeOverlayFrame();
+                    if (volumeOverlayTimeout >= 0)
+                    {
+                        waitTimeout = waitTimeout < 0 ? volumeOverlayTimeout : std::min(waitTimeout, volumeOverlayTimeout);
+                    }
+
+					// SDL_WaitEventTimeoutでイベントを待機する。タイムアウトが発生した場合は、needsRenderingをtrueにして再描画する
+                    const bool receivedEvent = (waitTimeout < 0) ? SDL_WaitEvent(&event) : SDL_WaitEventTimeout(&event, waitTimeout);
                     if (receivedEvent)
                     {
                         HandleEvent(event, isRunning, needsRendering);
                     }
+                    else if (volumeOverlayTimeout >= 0 && waitTimeout == volumeOverlayTimeout)
+                    {
+                        needsRendering = true;
+                    }
                 }
 
+				// SDL_PollEventでイベントを処理する。描画が必要な場合は、Render()を呼び出す
                 while (SDL_PollEvent(&event))
                 {
                     HandleEvent(event, isRunning, needsRendering);
                 }
 
+				// ファイルスキャンの処理とアニメーションの進行を行う。描画が必要な場合は、Render()を呼び出す
                 fileManager_.ProcessPendingScan();
                 if (imagePlayer_.AdvanceAnimation())
                 {
@@ -212,6 +227,7 @@ namespace
                 SDL_DestroyTexture(checkerTexture_);
                 checkerTexture_ = nullptr;
             }
+            HideVolumeOverlay();
             if (renderer_ != nullptr)
             {
                 SDL_DestroyRenderer(renderer_);
@@ -296,7 +312,14 @@ namespace
             case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
                 isRunning = false;
                 break;
+            case SDL_EVENT_WINDOW_FOCUS_LOST:
+                ResetVideoControlKeys();
+                break;
             case SDL_EVENT_KEY_DOWN:
+                if (HandleVideoControlKeyDown(event.key, needsRendering))
+                {
+                    break;
+                }
                 if (!event.key.repeat && event.key.key == SDLK_ESCAPE)
                 {
                     isRunning = false;
@@ -322,6 +345,9 @@ namespace
                     OpenRelativeFile(-1);
                     needsRendering = true;
                 }
+                break;
+            case SDL_EVENT_KEY_UP:
+                HandleVideoControlKeyUp(event.key.scancode);
                 break;
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 if (event.button.button == SDL_BUTTON_RIGHT)
@@ -412,8 +438,13 @@ namespace
         /// </summary>
         void Render()
         {
+			// 動画テクスチャを更新する
             videoPlayer_.UpdateTexture();
+
+			// ウィンドウの描画内容をクリアし、市松模様を描画する
             SDL_RenderClear(renderer_);
+
+			// 市松模様をウィンドウ全体に繰り返し描画する
             SDL_RenderTextureTiled(renderer_, checkerTexture_, nullptr, 1.0f, nullptr);
             int outputWidth = 0;
             int outputHeight = 0;
@@ -447,8 +478,236 @@ namespace
                     }
                 }
             }
+
+			// コンテキストメニューと音量表示を描画する
             RenderContextMenu(outputWidth, outputHeight);
+
+			// 音量表示のフェードアウトを描画する
+            RenderVolumeOverlay(outputWidth, outputHeight);
+
+			// SDLの描画内容をウィンドウへ提示する
             SDL_RenderPresent(renderer_);
+        }
+
+
+        /// <summary>
+        /// 音量表示の次回更新までの時間を返します。
+        /// </summary>
+        int MillisecondsUntilVolumeOverlayFrame() const
+        {
+            if (volumeDisplayValue_ < 0)
+            {
+                return -1;
+            }
+
+            const Uint64 elapsed = SDL_GetTicks() - volumeDisplayStartTime_;
+            if (elapsed < VOLUME_DISPLAY_DURATION_MS)
+            {
+                return static_cast<int>(VOLUME_DISPLAY_DURATION_MS - elapsed);
+            }
+
+            const Uint64 fadeElapsed = elapsed - VOLUME_DISPLAY_DURATION_MS;
+            if (fadeElapsed >= VOLUME_FADE_DURATION_MS)
+            {
+                return 0;
+            }
+
+            return static_cast<int>(std::min<Uint64>(
+                VOLUME_FADE_FRAME_INTERVAL_MS,
+                VOLUME_FADE_DURATION_MS - fadeElapsed));
+        }
+
+
+        /// <summary>
+        /// 音量表示用の日本語テキストをWindows GDIでSDLテクスチャへ描画します。
+        /// </summary>
+        void CreateVolumeOverlayTexture(int volume)
+        {
+            constexpr size_t pixelCount = static_cast<size_t>(VOLUME_OVERLAY_WIDTH * VOLUME_OVERLAY_HEIGHT);
+
+			// 既存のテクスチャがあれば破棄する
+            if (volumeOverlayTexture_ != nullptr)
+            {
+                SDL_DestroyTexture(volumeOverlayTexture_);
+                volumeOverlayTexture_ = nullptr;
+            }
+
+			// GDIで描画したピクセルを格納するバッファを作成する
+            std::vector<Uint8> bitmapPixels(pixelCount * 4, 0);
+            BITMAPINFO bitmapInfo{};
+            bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+            bitmapInfo.bmiHeader.biWidth = VOLUME_OVERLAY_WIDTH;
+            bitmapInfo.bmiHeader.biHeight = -VOLUME_OVERLAY_HEIGHT;
+            bitmapInfo.bmiHeader.biPlanes = 1;
+            bitmapInfo.bmiHeader.biBitCount = 32;
+            bitmapInfo.bmiHeader.biCompression = BI_RGB;
+
+			// GDIのデバイスコンテキストを作成し、DIBセクションを作成して描画する
+            HDC deviceContext = CreateCompatibleDC(nullptr);
+            if (deviceContext == nullptr)
+            {
+                return;
+            }
+
+			// DIBセクションを作成し、ピクセルデータへのポインタを取得する
+            void* dibPixels = nullptr;
+            HBITMAP bitmap = CreateDIBSection(deviceContext, &bitmapInfo, DIB_RGB_COLORS, &dibPixels, nullptr, 0);
+            if (bitmap == nullptr || dibPixels == nullptr)
+            {
+                if (bitmap != nullptr)
+                {
+                    DeleteObject(bitmap);
+                }
+                DeleteDC(deviceContext);
+                return;
+            }
+
+			// DIBセクションをデバイスコンテキストに選択し、フォントを作成して描画する
+            HGDIOBJ originalBitmap = SelectObject(deviceContext, bitmap);
+            HFONT font = CreateFontW(
+                -32, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+                OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+                DEFAULT_PITCH | FF_DONTCARE, L"Yu Gothic UI");
+            HGDIOBJ originalFont = font != nullptr ? SelectObject(deviceContext, font) : nullptr;
+            SetBkMode(deviceContext, TRANSPARENT);
+            SetTextColor(deviceContext, RGB(255, 255, 255));
+
+			// 音量表示のテキストを描画する。アウトラインを描画するために、8方向にオフセットして描画する
+            const std::wstring label = L"音量" + std::to_wstring(volume) + L"%";
+            constexpr std::array<POINT, 8> outlineOffsets{
+                POINT{ -2, 0 }, POINT{ 2, 0 }, POINT{ 0, -2 }, POINT{ 0, 2 },
+                POINT{ -1, -1 }, POINT{ 1, -1 }, POINT{ -1, 1 }, POINT{ 1, 1 }
+            };
+            const auto drawTextMask = [&](bool drawOutline)
+            {
+                std::fill_n(static_cast<Uint32*>(dibPixels), pixelCount, 0u);
+                const int offsetCount = drawOutline ? static_cast<int>(outlineOffsets.size()) : 1;
+                for (int index = 0; index < offsetCount; ++index)
+                {
+                    const POINT offset = drawOutline ? outlineOffsets[static_cast<size_t>(index)] : POINT{};
+                    RECT textRectangle{ 8 + offset.x, offset.y, VOLUME_OVERLAY_WIDTH - 8 + offset.x, VOLUME_OVERLAY_HEIGHT + offset.y };
+                    DrawTextW(deviceContext, label.c_str(), static_cast<int>(label.size()), &textRectangle, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                }
+
+                const auto* sourcePixels = static_cast<const Uint8*>(dibPixels);
+                std::vector<Uint8> mask(pixelCount);
+                for (size_t index = 0; index < pixelCount; ++index)
+                {
+                    const size_t pixelOffset = index * 4;
+                    mask[index] = std::max({ sourcePixels[pixelOffset], sourcePixels[pixelOffset + 1], sourcePixels[pixelOffset + 2] });
+                }
+                return mask;
+            };
+
+			// アウトラインと塗りつぶしのマスクを作成し、アルファ値を計算してピクセルデータを更新する
+            const std::vector<Uint8> outlineMask = drawTextMask(true);
+            const std::vector<Uint8> fillMask = drawTextMask(false);
+            std::vector<Uint8> alphaMask(pixelCount);
+            for (size_t index = 0; index < pixelCount; ++index)
+            {
+                const size_t pixelOffset = index * 4;
+                const unsigned fill = fillMask[index];
+                const unsigned outline = outlineMask[index];
+                const unsigned alpha = fill + (outline * (255 - fill) + 127) / 255;
+                alphaMask[index] = static_cast<Uint8>(alpha);
+                const Uint8 color = alpha > 0 ? static_cast<Uint8>((fill * 255 + alpha / 2) / alpha) : 0;
+                bitmapPixels[pixelOffset] = color;
+                bitmapPixels[pixelOffset + 1] = color;
+                bitmapPixels[pixelOffset + 2] = color;
+                bitmapPixels[pixelOffset + 3] = static_cast<Uint8>(alpha);
+            }
+
+			// GDIリソースを解放する
+            if (originalFont != nullptr)
+            {
+                SelectObject(deviceContext, originalFont);
+            }
+            if (font != nullptr)
+            {
+                DeleteObject(font);
+            }
+            SelectObject(deviceContext, originalBitmap);
+            DeleteObject(bitmap);
+            DeleteDC(deviceContext);
+
+			// SDLテクスチャを作成し、ピクセルデータを転送する
+            SDL_Texture* texture = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, VOLUME_OVERLAY_WIDTH, VOLUME_OVERLAY_HEIGHT);
+            if (texture == nullptr
+             || !SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND)
+             || !SDL_UpdateTexture(texture, nullptr, bitmapPixels.data(), VOLUME_OVERLAY_WIDTH * 4)
+            ) {
+                if (texture != nullptr)
+                {
+                    SDL_DestroyTexture(texture);
+                }
+                return;
+            }
+
+            volumeOverlayTexture_ = texture;
+            volumeOverlayPixels_ = std::move(bitmapPixels);
+            volumeOverlayAlphaMask_ = std::move(alphaMask);
+        }
+
+
+        /// <summary>
+        /// 音量表示を右上に描画し、1秒経過後にフェードアウトします。
+        /// </summary>
+        void RenderVolumeOverlay(int outputWidth, int outputHeight)
+        {
+            if (volumeDisplayValue_ < 0)
+            {
+                return;
+            }
+
+			// 音量表示の経過時間を計算し、フェードアウトの進行度を決定する
+            const Uint64 elapsed = SDL_GetTicks() - volumeDisplayStartTime_;
+            const Uint64 totalDuration = VOLUME_DISPLAY_DURATION_MS + VOLUME_FADE_DURATION_MS;
+            if (elapsed >= totalDuration)
+            {
+                volumeDisplayValue_ = -1;
+                return;
+            }
+            if (volumeOverlayTexture_ == nullptr || outputWidth <= 0 || outputHeight <= 0)
+            {
+                return;
+            }
+
+			// フェードアウトの進行度に応じてアルファ値を計算し、ピクセルデータを更新する
+            float opacity = 1.0f;
+            if (elapsed > VOLUME_DISPLAY_DURATION_MS)
+            {
+                opacity = 1.0f - static_cast<float>(elapsed - VOLUME_DISPLAY_DURATION_MS) / static_cast<float>(VOLUME_FADE_DURATION_MS);
+            }
+            for (size_t index = 0; index < volumeOverlayAlphaMask_.size(); ++index)
+            {
+                volumeOverlayPixels_[index * 4 + 3] = static_cast<Uint8>(volumeOverlayAlphaMask_[index] * opacity);
+            }
+            SDL_UpdateTexture(volumeOverlayTexture_, nullptr, volumeOverlayPixels_.data(), VOLUME_OVERLAY_WIDTH * 4);
+
+			// 音量表示テクスチャを右上に描画する
+            const SDL_FRect destination{
+                std::max(0.0f, static_cast<float>(outputWidth) - VOLUME_OVERLAY_WIDTH - VOLUME_OVERLAY_MARGIN),
+                static_cast<float>(VOLUME_OVERLAY_MARGIN),
+                static_cast<float>(VOLUME_OVERLAY_WIDTH),
+                static_cast<float>(VOLUME_OVERLAY_HEIGHT)
+            };
+            SDL_RenderTexture(renderer_, volumeOverlayTexture_, nullptr, &destination);
+        }
+
+
+        /// <summary>
+        /// 音量表示テクスチャと表示状態を解放します。
+        /// </summary>
+        void HideVolumeOverlay()
+        {
+            volumeDisplayValue_ = -1;
+            volumeOverlayPixels_.clear();
+            volumeOverlayAlphaMask_.clear();
+            if (volumeOverlayTexture_ != nullptr)
+            {
+                SDL_DestroyTexture(volumeOverlayTexture_);
+                volumeOverlayTexture_ = nullptr;
+            }
         }
 
 
@@ -488,6 +747,134 @@ namespace
                 const float textY = panel.y + (static_cast<float>(index) * CONTEXT_MENU_ROW_HEIGHT + 10.0f) * scaleY;
                 SDL_RenderDebugText(renderer_, textX, textY, MENU_ITEMS[index]);
             }
+        }
+
+
+        /// <summary>
+        /// 数字列またはテンキーの動画操作キーから操作番号を取得します。
+        /// </summary>
+        static int GetVideoControlKeyIndex(SDL_Scancode scancode)
+        {
+            switch (scancode)
+            {
+            case SDL_SCANCODE_4:
+            case SDL_SCANCODE_KP_4:
+                return 0;
+            case SDL_SCANCODE_6:
+            case SDL_SCANCODE_KP_6:
+                return 1;
+            case SDL_SCANCODE_8:
+            case SDL_SCANCODE_KP_8:
+                return 2;
+            case SDL_SCANCODE_2:
+            case SDL_SCANCODE_KP_2:
+                return 3;
+            default:
+                return -1;
+            }
+        }
+
+
+        /// <summary>
+        /// 音量変更後の描画
+        /// </summary>
+        void ShowVolumeOverlay(int volume, bool& needsRendering)
+        {
+            volumeDisplayValue_ = volume;
+            volumeDisplayStartTime_ = SDL_GetTicks();
+            CreateVolumeOverlayTexture(volume);
+            needsRendering = true;
+        }
+
+
+        /// <summary>
+		/// 動画操作キーに対応する操作を実行します。
+        /// </summary>
+        void PerformVideoControlAction(int actionIndex, bool& needsRendering)
+        {
+            switch (actionIndex)
+            {
+				// Key4: 10秒巻き戻し
+                case 0:
+                    videoPlayer_.SeekBySeconds(-VIDEO_SEEK_SECONDS);
+                    break;
+				// Key6: 10秒早送り
+                case 1:
+                    videoPlayer_.SeekBySeconds(VIDEO_SEEK_SECONDS);
+                    break;
+				// Key8: 音量アップ
+                case 2:
+                {
+                    const int volume = videoPlayer_.AdjustVolume(VIDEO_VOLUME_STEP);
+                    if (volume >= 0)
+                    {
+                        ShowVolumeOverlay(volume, needsRendering);
+                    }
+                    break;
+                }
+				// Key2: 音量ダウン
+                case 3:
+                {
+                    const int volume = videoPlayer_.AdjustVolume(-VIDEO_VOLUME_STEP);
+                    if (volume >= 0)
+                    {
+                        ShowVolumeOverlay(volume, needsRendering);
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+
+
+        /// <summary>
+        /// 動画操作キーの初回押下を処理し、連続操作開始時刻を記録します。
+        /// </summary>
+        bool HandleVideoControlKeyDown(const SDL_KeyboardEvent& key, bool& needsRendering)
+        {
+            const int actionIndex = GetVideoControlKeyIndex(key.scancode);
+            if (actionIndex < 0)
+            {
+                return false;
+            }
+
+            const size_t index = static_cast<size_t>(actionIndex);
+            if (!key.repeat && !videoControlKeysHeld_[index])
+            {
+                videoControlKeysHeld_[index] = true;
+                videoControlKeyDownTimes_[index] = SDL_GetTicks();
+                PerformVideoControlAction(actionIndex, needsRendering);
+            }
+            else if (key.repeat && videoControlKeysHeld_[index] &&
+                SDL_GetTicks() - videoControlKeyDownTimes_[index] >= VIDEO_KEY_REPEAT_DELAY_MS)
+            {
+                PerformVideoControlAction(actionIndex, needsRendering);
+            }
+
+            return true;
+        }
+
+
+        /// <summary>
+        /// 動画操作キーの押下状態を解除します。
+        /// </summary>
+        void HandleVideoControlKeyUp(SDL_Scancode scancode)
+        {
+            const int actionIndex = GetVideoControlKeyIndex(scancode);
+            if (actionIndex >= 0)
+            {
+                videoControlKeysHeld_[static_cast<size_t>(actionIndex)] = false;
+            }
+        }
+
+
+        /// <summary>
+        /// フォーカス喪失や動画切替時に動画操作キーの押下状態を解除します。
+        /// </summary>
+        void ResetVideoControlKeys()
+        {
+            videoControlKeysHeld_.fill(false);
         }
 
 
@@ -571,7 +958,9 @@ namespace
             currentFilePath_ = absoluteError ? path : absolutePath.wstring();
             fileManager_.SetCurrentFilePath(currentFilePath_);
             UpdateWindowTitle();
+            HideVolumeOverlay();
             videoPlayer_.Stop();
+            ResetVideoControlKeys();
             isMotionPhotoVideoPlaying_ = false;
             CleanupMotionPhotoTempFile();
             imagePlayer_.Clear();
@@ -685,6 +1074,7 @@ namespace
         SDL_Window* window_ = nullptr;
         SDL_Renderer* renderer_ = nullptr;
         SDL_Texture* checkerTexture_ = nullptr;
+        SDL_Texture* volumeOverlayTexture_ = nullptr;
         Uint32 videoFrameEventType_ = 0;
         Uint32 videoPlaybackEndedEventType_ = 0;
         VideoPlayer videoPlayer_;
@@ -698,6 +1088,12 @@ namespace
         bool isPanning_ = false;
         bool contextMenuOpen_ = false;
         bool isMotionPhotoVideoPlaying_ = false;
+        int volumeDisplayValue_ = -1;
+        Uint64 volumeDisplayStartTime_ = 0;
+        std::vector<Uint8> volumeOverlayPixels_;
+        std::vector<Uint8> volumeOverlayAlphaMask_;
+        std::array<bool, 4> videoControlKeysHeld_{};
+        std::array<Uint64, 4> videoControlKeyDownTimes_{};
         float contextMenuX_ = 0.0f;
         float contextMenuY_ = 0.0f;
         std::wstring currentFilePath_;
