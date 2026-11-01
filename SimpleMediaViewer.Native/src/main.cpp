@@ -979,7 +979,7 @@ namespace
             };
             if (std::find(VIDEO_EXTENSIONS.begin(), VIDEO_EXTENSIONS.end(), extension) != VIDEO_EXTENSIONS.end())
             {
-                if (!videoPlayer_.Play(renderer_, videoFrameEventType_, videoPlaybackEndedEventType_, path))
+                if (!videoPlayer_.Play(renderer_, videoFrameEventType_, videoPlaybackEndedEventType_, path, LOOP_VIDEO_PLAYBACK))
                 {
                     MessageBoxW(nullptr,
                         L"動画を開けませんでした。LibVLCの初期化またはメディアの読込に失敗しました。",
@@ -1018,7 +1018,8 @@ namespace
                 return false;
             }
 
-            if (!videoPlayer_.Play(renderer_, videoFrameEventType_, videoPlaybackEndedEventType_, extractedPath->wstring()))
+			// Motion Photoの動画部分を再生し、再生終了後に一時ファイルを削除する
+            if (!videoPlayer_.Play(renderer_, videoFrameEventType_, videoPlaybackEndedEventType_, extractedPath->wstring(), false))
             {
                 std::error_code removeError;
                 std::filesystem::remove(*extractedPath, removeError);

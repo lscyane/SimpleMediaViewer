@@ -33,6 +33,9 @@ inline constexpr bool USE_NEAREST_NEIGHBOR_IMAGE_SCALING = true;
 // -------------------------------------------------------------
 // 動画関連設定
 // -------------------------------------------------------------
+// true: 動画をループ再生する。
+// false: 動画を一度だけ再生する。
+inline constexpr bool LOOP_VIDEO_PLAYBACK = true;
 // 動画再生時の初期音量（0～100）。
 inline constexpr int VIDEO_INITIAL_VOLUME = 0;
 // 動画のシーク時に前後する秒数。

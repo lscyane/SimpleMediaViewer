@@ -14,7 +14,7 @@
 /// <summary>
 /// VLC初期化を遅延させ、指定動画をSDL描画スレッドと共有可能な出力形式で再生します。
 /// </summary>
-bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 playbackEndedEventType, const std::wstring& path)
+bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 playbackEndedEventType, const std::wstring& path, bool loopPlayback)
 {
 	Stop();
 	renderer_ = renderer;
@@ -47,6 +47,10 @@ bool VideoPlayer::Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 pla
 	if (media == nullptr)
 	{
 		return false;
+	}
+	if (loopPlayback)
+	{
+		libvlc_media_add_option(media, ":input-repeat=-1");
 	}
 
 	mediaPlayer_ = libvlc_media_player_new_from_media(media);

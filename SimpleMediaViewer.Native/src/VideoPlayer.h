@@ -20,7 +20,7 @@ class VideoPlayer final
 {
 public:
 	/// <summary>最初の動画再生要求時にLibVLCを初期化して動画を再生します。</summary>
-	bool Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 playbackEndedEventType, const std::wstring& path);
+	bool Play(SDL_Renderer* renderer, Uint32 frameEventType, Uint32 playbackEndedEventType, const std::wstring& path, bool loopPlayback);
 
 	/// <summary>現在の動画再生を停止し、動画テクスチャを破棄します。</summary>
 	void Stop();
