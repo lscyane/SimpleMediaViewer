@@ -3,9 +3,13 @@
 
 #include <SDL3_image/SDL_image.h>
 #include <Windows.h>
+#include <avif/avif.h>
+
+#pragma comment(lib, "avif.lib")
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cwctype>
 #include <fstream>
 #include <filesystem>
@@ -16,6 +20,66 @@
 
 namespace
 {
+	/// <summary>
+	/// AVIFのRGBフレームをRGBA SDLサーフェスに変換します。
+	/// </summary>
+	SDL_Surface* CreateAvifSurface(const avifImage* image)
+	{
+		if (image == nullptr || image->width == 0 || image->height == 0 ||
+			image->width > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
+			image->height > static_cast<uint32_t>(std::numeric_limits<int>::max()))
+		{
+			return nullptr;
+		}
+
+		SDL_Surface* surface = SDL_CreateSurface(
+			static_cast<int>(image->width),
+			static_cast<int>(image->height),
+			SDL_PIXELFORMAT_RGBA32);
+		if (surface == nullptr)
+		{
+			return nullptr;
+		}
+
+		avifRGBImage rgbImage{};
+		avifRGBImageSetDefaults(&rgbImage, image);
+		rgbImage.format = AVIF_RGB_FORMAT_RGBA;
+		rgbImage.depth = 8;
+		rgbImage.pixels = static_cast<uint8_t*>(surface->pixels);
+		rgbImage.rowBytes = static_cast<uint32_t>(surface->pitch);
+		if (!SDL_LockSurface(surface))
+		{
+			SDL_DestroySurface(surface);
+			return nullptr;
+		}
+
+		const avifResult result = avifImageYUVToRGB(image, &rgbImage);
+		SDL_UnlockSurface(surface);
+		if (result != AVIF_RESULT_OK)
+		{
+			SDL_DestroySurface(surface);
+			return nullptr;
+		}
+		return surface;
+	}
+
+
+	/// <summary>
+	/// AVIFの現在フレーム表示時間をミリ秒で返します。
+	/// </summary>
+	Uint64 GetAvifFrameDuration(const avifDecoder* decoder)
+	{
+		const double milliseconds = decoder->imageTiming.duration * 1000.0;
+		if (!std::isfinite(milliseconds) || milliseconds <= 1.0)
+		{
+			return 1;
+		}
+		return static_cast<Uint64>(std::min(
+			milliseconds,
+			static_cast<double>(std::numeric_limits<int>::max())));
+	}
+
+
 	/// <summary>
 	/// WindowsのパスをSDL用のUTF-8文字列へ変換します。
 	/// </summary>
@@ -56,6 +120,17 @@ namespace
 		std::wstring extension = std::filesystem::path(path).extension().wstring();
 		std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
 		return extension == L".png" || extension == L".apng";
+	}
+
+
+	/// <summary>
+	/// パスがAVIF形式かを返します。
+	/// </summary>
+	bool IsAvifPath(const std::wstring& path)
+	{
+		std::wstring extension = std::filesystem::path(path).extension().wstring();
+		std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
+		return extension == L".avif";
 	}
 
 
@@ -393,6 +468,11 @@ bool ImagePlayer::Load(SDL_Renderer* renderer, const std::wstring& path)
 		return false;
 	}
 
+	if (IsAvifPath(path) && LoadAvifAnimation(renderer, path))
+	{
+		return true;
+	}
+
 	if (SupportsAnimationDecoder(path) && LoadAnimation(renderer, utf8Path, path, IsApngPath(path)))
 	{
 		return true;
@@ -488,10 +568,115 @@ bool ImagePlayer::LoadAnimation(SDL_Renderer* renderer, const std::string& utf8P
 
 
 /// <summary>
+/// libavifでアニメーションAVIFを読み込み、最初のフレームを表示します。
+/// </summary>
+bool ImagePlayer::LoadAvifAnimation(SDL_Renderer* renderer, const std::wstring& path)
+{
+	std::ifstream file{ std::filesystem::path(path), std::ios::binary | std::ios::ate };
+	if (!file)
+	{
+		return false;
+	}
+
+	const std::streamoff fileSize = file.tellg();
+	if (fileSize <= 0 || static_cast<unsigned long long>(fileSize) > std::numeric_limits<size_t>::max() ||
+		fileSize > std::numeric_limits<std::streamsize>::max())
+	{
+		return false;
+	}
+
+	avifData_.resize(static_cast<size_t>(fileSize));
+	file.seekg(0, std::ios::beg);
+	file.read(reinterpret_cast<char*>(avifData_.data()), static_cast<std::streamsize>(avifData_.size()));
+	if (!file)
+	{
+		std::vector<Uint8>().swap(avifData_);
+		return false;
+	}
+
+	avifDecoder_ = avifDecoderCreate();
+	if (avifDecoder_ == nullptr ||
+		avifDecoderSetIOMemory(avifDecoder_, avifData_.data(), avifData_.size()) != AVIF_RESULT_OK ||
+		avifDecoderParse(avifDecoder_) != AVIF_RESULT_OK)
+	{
+		if (avifDecoder_ != nullptr)
+		{
+			avifDecoderDestroy(avifDecoder_);
+			avifDecoder_ = nullptr;
+		}
+		std::vector<Uint8>().swap(avifData_);
+		return false;
+	}
+
+	if (avifDecoder_->imageCount <= 1)
+	{
+		avifDecoderDestroy(avifDecoder_);
+		avifDecoder_ = nullptr;
+		std::vector<Uint8>().swap(avifData_);
+		return false;
+	}
+
+	avifFrameCount_ = avifDecoder_->imageCount;
+	if (HONOR_ANIMATION_LOOP_COUNT && avifDecoder_->repetitionCount >= 0)
+	{
+		loopCount_ = static_cast<Sint64>(avifDecoder_->repetitionCount) + 1;
+	}
+	else
+	{
+		loopCount_ = 0;
+	}
+
+	if (avifDecoderNextImage(avifDecoder_) != AVIF_RESULT_OK)
+	{
+		avifDecoderDestroy(avifDecoder_);
+		avifDecoder_ = nullptr;
+		std::vector<Uint8>().swap(avifData_);
+		return false;
+	}
+
+	SDL_Surface* firstFrame = CreateAvifSurface(avifDecoder_->image);
+	if (firstFrame == nullptr || !SetTextureFromSurface(renderer, firstFrame))
+	{
+		if (firstFrame != nullptr)
+		{
+			SDL_DestroySurface(firstFrame);
+		}
+		avifDecoderDestroy(avifDecoder_);
+		avifDecoder_ = nullptr;
+		std::vector<Uint8>().swap(avifData_);
+		return false;
+	}
+	SDL_DestroySurface(firstFrame);
+
+	avifFramesDecoded_ = 1;
+	frameDuration_ = GetAvifFrameDuration(avifDecoder_);
+	completedPlays_ = 1;
+	if (!ReadNextAvifFrame())
+	{
+		avifDecoderDestroy(avifDecoder_);
+		avifDecoder_ = nullptr;
+		std::vector<Uint8>().swap(avifData_);
+		return true;
+	}
+
+	renderer_ = renderer;
+	isAnimated_ = true;
+	isPlaying_ = true;
+	nextFrameTime_ = SDL_GetTicks() + frameDuration_;
+	return true;
+}
+
+
+/// <summary>
 /// デコーダーから次の表示フレームを先読みします。
 /// </summary>
 bool ImagePlayer::ReadNextFrame()
 {
+	if (avifDecoder_ != nullptr)
+	{
+		return ReadNextAvifFrame();
+	}
+
 	if (!IMG_GetAnimationDecoderFrame(animationDecoder_, &pendingFrame_, &pendingFrameDuration_))
 	{
 		const IMG_AnimationDecoderStatus status = IMG_GetAnimationDecoderStatus(animationDecoder_);
@@ -507,6 +692,35 @@ bool ImagePlayer::ReadNextFrame()
 		return false;
 	}
 	return pendingFrame_ != nullptr;
+}
+
+
+/// <summary>
+/// libavifから次のAVIFフレームと表示時間を読み込みます。
+/// </summary>
+bool ImagePlayer::ReadNextAvifFrame()
+{
+	if (avifDecoder_ == nullptr || avifFramesDecoded_ >= avifFrameCount_)
+	{
+		decoderComplete_ = true;
+		return false;
+	}
+
+	if (avifDecoderNextImage(avifDecoder_) != AVIF_RESULT_OK)
+	{
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "AVIF frame decoding failed: %s", avifDecoder_->diag.error);
+		return false;
+	}
+
+	pendingFrame_ = CreateAvifSurface(avifDecoder_->image);
+	if (pendingFrame_ == nullptr)
+	{
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "AVIF frame conversion failed.");
+		return false;
+	}
+	++avifFramesDecoded_;
+	pendingFrameDuration_ = GetAvifFrameDuration(avifDecoder_);
+	return true;
 }
 
 
@@ -582,6 +796,33 @@ bool ImagePlayer::AdvanceAnimation()
 		isEnded_ = true;
 		return false;
 	}
+	if (avifDecoder_ != nullptr)
+	{
+		if (avifDecoderReset(avifDecoder_) != AVIF_RESULT_OK)
+		{
+			isPlaying_ = false;
+			return false;
+		}
+		avifFramesDecoded_ = 0;
+		decoderComplete_ = false;
+		if (!ReadNextAvifFrame() || pendingFrame_ == nullptr || !SetTextureFromSurface(renderer_, pendingFrame_))
+		{
+			if (pendingFrame_ != nullptr)
+			{
+				SDL_DestroySurface(pendingFrame_);
+				pendingFrame_ = nullptr;
+			}
+			isPlaying_ = false;
+			return false;
+		}
+		SDL_DestroySurface(pendingFrame_);
+		pendingFrame_ = nullptr;
+		++completedPlays_;
+		frameDuration_ = std::max<Uint64>(pendingFrameDuration_, 1);
+		nextFrameTime_ = now + frameDuration_;
+		ReadNextAvifFrame();
+		return true;
+	}
 	if (!IMG_ResetAnimationDecoder(animationDecoder_))
 	{
 		isPlaying_ = false;
@@ -616,7 +857,7 @@ bool ImagePlayer::AdvanceAnimation()
 /// </summary>
 void ImagePlayer::TogglePause() noexcept
 {
-	if (animationDecoder_ == nullptr || isEnded_)
+	if ((animationDecoder_ == nullptr && avifDecoder_ == nullptr) || isEnded_)
 	{
 		return;
 	}
@@ -687,7 +928,13 @@ void ImagePlayer::Clear()
 		IMG_CloseAnimationDecoder(animationDecoder_);
 		animationDecoder_ = nullptr;
 	}
+	if (avifDecoder_ != nullptr)
+	{
+		avifDecoderDestroy(avifDecoder_);
+		avifDecoder_ = nullptr;
+	}
 	std::vector<Uint8>().swap(animationData_);
+	std::vector<Uint8>().swap(avifData_);
 	if (texture_ != nullptr)
 	{
 		SDL_DestroyTexture(texture_);
@@ -696,6 +943,8 @@ void ImagePlayer::Clear()
 	renderer_ = nullptr;
 	width_ = 0;
 	height_ = 0;
+	avifFrameCount_ = 0;
+	avifFramesDecoded_ = 0;
 	frameDuration_ = 0;
 	pendingFrameDuration_ = 0;
 	nextFrameTime_ = 0;

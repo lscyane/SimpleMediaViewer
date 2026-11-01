@@ -565,8 +565,8 @@ namespace
             static const std::array<std::wstring, 8> VIDEO_EXTENSIONS{
                 L".webm", L".mp4", L".avi", L".mkv", L".mov", L".flv", L".wmv", L".mpeg"
             };
-            static const std::array<std::wstring, 11> IMAGE_EXTENSIONS{
-                L".jpg", L".jpeg", L".png", L".apng", L".bmp", L".tif", L".tiff", L".gif", L".webp", L".dib", L".jpe"
+            static const std::array<std::wstring, 12> IMAGE_EXTENSIONS{
+                L".jpg", L".jpeg", L".png", L".apng", L".bmp", L".tif", L".tiff", L".gif", L".webp", L".avif", L".dib", L".jpe"
             };
             if (std::find(VIDEO_EXTENSIONS.begin(), VIDEO_EXTENSIONS.end(), extension) != VIDEO_EXTENSIONS.end())
             {

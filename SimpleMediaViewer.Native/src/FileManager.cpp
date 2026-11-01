@@ -122,8 +122,8 @@ void FileManager::StartFolderScan(const std::wstring& directory)
 /// </summary>
 std::vector<std::wstring> FileManager::EnumerateFolderFiles(const std::wstring& directory)
 {
-	static const std::array<std::wstring, 19> SUPPORTED_EXTENSIONS{
-		L".jpg", L".jpeg", L".jpe", L".png", L".apng", L".gif", L".bmp", L".dib", L".webp", L".tif", L".tiff",
+	static const std::array<std::wstring, 20> SUPPORTED_EXTENSIONS{
+		L".jpg", L".jpeg", L".jpe", L".png", L".apng", L".gif", L".bmp", L".dib", L".webp", L".avif", L".tif", L".tiff",
 		L".webm", L".mp4", L".avi", L".mkv", L".mov", L".flv", L".wmv", L".mpeg"
 	};
 
