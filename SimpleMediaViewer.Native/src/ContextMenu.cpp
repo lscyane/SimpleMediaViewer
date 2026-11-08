@@ -42,12 +42,9 @@ namespace
 		{ MF_STRING, SORT_RANDOM_COMMAND, L"ランダム" }
 	}};
 
-	constexpr std::array<MenuItem, 5> MENU_ITEMS{{
-		{ MF_STRING, FIT_TO_WINDOW_COMMAND, L"Fit to window" },
-		{ MF_STRING, ORIGINAL_SIZE_COMMAND, L"Original size" },
-		{ MF_STRING, TOGGLE_PLAYBACK_COMMAND, L"Play / pause" },
+	constexpr std::array<MenuItem, 2> MENU_ITEMS{{
 		{ MF_SEPARATOR, 0, nullptr },
-		{ MF_STRING, EXIT_COMMAND, L"Exit" }
+		{ MF_STRING, EXIT_COMMAND, L"終了\tEsc" }
 	}};
 }
 
@@ -141,6 +138,40 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window, FileManager& fileManage
 	{
 		DestroyMenu(listMenu);
 		DestroyMenu(menu);
+		return ContextMenuCommand::None;
+	}
+
+	HMENU displayMenu = CreatePopupMenu();
+	HMENU operationMenu = CreatePopupMenu();
+	if (displayMenu == nullptr || operationMenu == nullptr)
+	{
+		if (displayMenu != nullptr)
+		{
+			DestroyMenu(displayMenu);
+		}
+		if (operationMenu != nullptr)
+		{
+			DestroyMenu(operationMenu);
+		}
+		DestroyMenu(menu);
+		return ContextMenuCommand::None;
+	}
+
+	// 表示と操作のサブメニューを作成します。
+	if (!AppendMenuW(displayMenu, MF_STRING, FIT_TO_WINDOW_COMMAND, L"ウィンドウに合わせる\tF")
+		|| !AppendMenuW(displayMenu, MF_STRING, ORIGINAL_SIZE_COMMAND, L"等倍表示\tG")
+		|| !AppendMenuW(operationMenu, MF_STRING, TOGGLE_PLAYBACK_COMMAND, L"再生 / 一時停止\tSpace"))
+	{
+		DestroyMenu(operationMenu);
+		DestroyMenu(displayMenu);
+		DestroyMenu(menu);
+		return ContextMenuCommand::None;
+	}
+	if (!AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(displayMenu), L"表示")
+		|| !AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(operationMenu), L"操作"))
+	{
+		DestroyMenu(menu);
+		DestroyMenu(operationMenu);
 		return ContextMenuCommand::None;
 	}
 

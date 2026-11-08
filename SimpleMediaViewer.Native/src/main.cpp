@@ -339,6 +339,14 @@ namespace
                         videoPlayer_.TogglePause();
                     }
                 }
+                else if (!event.key.repeat && event.key.key == SDLK_F)
+                {
+                    HandleContextMenuCommand(ContextMenuCommand::FitToWindow, isRunning, needsRendering);
+                }
+                else if (!event.key.repeat && event.key.key == SDLK_G)
+                {
+                    HandleContextMenuCommand(ContextMenuCommand::OriginalSize, isRunning, needsRendering);
+                }
                 else if (!event.key.repeat && event.key.key == SDLK_RIGHT)
                 {
                     OpenRelativeFile(1);
