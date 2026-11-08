@@ -867,6 +867,21 @@ namespace
                 }
                 needsRendering = true;
                 break;
+            case ContextMenuCommand::SortByNameAscending:
+                fileManager_.SetSortOrder(FileSortOrder::NameAscending);
+                break;
+            case ContextMenuCommand::SortByNameDescending:
+                fileManager_.SetSortOrder(FileSortOrder::NameDescending);
+                break;
+            case ContextMenuCommand::SortByDateAscending:
+                fileManager_.SetSortOrder(FileSortOrder::DateAscending);
+                break;
+            case ContextMenuCommand::SortByDateDescending:
+                fileManager_.SetSortOrder(FileSortOrder::DateDescending);
+                break;
+            case ContextMenuCommand::SortRandom:
+                fileManager_.SetSortOrder(FileSortOrder::Random);
+                break;
             case ContextMenuCommand::Exit:
                 isRunning = false;
                 break;

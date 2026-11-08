@@ -14,6 +14,11 @@ namespace
 	constexpr UINT ORIGINAL_SIZE_COMMAND = 2;
 	constexpr UINT TOGGLE_PLAYBACK_COMMAND = 3;
 	constexpr UINT EXIT_COMMAND = 4;
+	constexpr UINT SORT_BY_NAME_ASCENDING_COMMAND = 5;
+	constexpr UINT SORT_BY_NAME_DESCENDING_COMMAND = 6;
+	constexpr UINT SORT_BY_DATE_ASCENDING_COMMAND = 7;
+	constexpr UINT SORT_BY_DATE_DESCENDING_COMMAND = 8;
+	constexpr UINT SORT_RANDOM_COMMAND = 9;
 
 	struct MenuItem
 	{
@@ -22,10 +27,16 @@ namespace
 		LPCWSTR label;
 	};
 
+	constexpr std::array<MenuItem, 7> SORT_MENU_ITEMS{{
+		{ MF_STRING, SORT_BY_NAME_ASCENDING_COMMAND, L"名前 (昇順)" },
+		{ MF_STRING, SORT_BY_NAME_DESCENDING_COMMAND, L"名前 (降順)" },
+		{ MF_SEPARATOR, 0, nullptr },
+		{ MF_STRING, SORT_BY_DATE_ASCENDING_COMMAND, L"更新日時 (昇順)" },
+		{ MF_STRING, SORT_BY_DATE_DESCENDING_COMMAND, L"更新日時 (降順)" },
+		{ MF_SEPARATOR, 0, nullptr },
+		{ MF_STRING, SORT_RANDOM_COMMAND, L"ランダム" }
+	}};
 
-	/// <summary>
-	/// メニュー項目を保持する定数配列を定義します。
-	/// </summary>
 	constexpr std::array<MenuItem, 5> MENU_ITEMS{{
 		{ MF_STRING, FIT_TO_WINDOW_COMMAND, L"Fit to window" },
 		{ MF_STRING, ORIGINAL_SIZE_COMMAND, L"Original size" },
@@ -69,8 +80,47 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window)
 
 	// コンテキストメニューを作成し、メニュー項目を追加して表示します。
 	HMENU menu = CreatePopupMenu();
-	if (menu == nullptr)
+	HMENU listMenu = CreatePopupMenu();
+	HMENU sortMenu = CreatePopupMenu();
+	if (menu == nullptr || listMenu == nullptr || sortMenu == nullptr)
 	{
+		if (menu != nullptr)
+		{
+			DestroyMenu(menu);
+		}
+		if (listMenu != nullptr)
+		{
+			DestroyMenu(listMenu);
+		}
+		if (sortMenu != nullptr)
+		{
+			DestroyMenu(sortMenu);
+		}
+		return ContextMenuCommand::None;
+	}
+
+	// 並び順サブメニューを作成します。
+	for (const MenuItem& item : SORT_MENU_ITEMS)
+	{
+		if (!AppendMenuW(sortMenu, item.flags, item.command, item.label))
+		{
+			DestroyMenu(sortMenu);
+			DestroyMenu(listMenu);
+			DestroyMenu(menu);
+			return ContextMenuCommand::None;
+		}
+	}
+	if (!AppendMenuW(listMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(sortMenu), L"並び順"))
+	{
+		DestroyMenu(sortMenu);
+		DestroyMenu(listMenu);
+		DestroyMenu(menu);
+		return ContextMenuCommand::None;
+	}
+	if (!AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(listMenu), L"リスト"))
+	{
+		DestroyMenu(listMenu);
+		DestroyMenu(menu);
 		return ContextMenuCommand::None;
 	}
 
@@ -112,6 +162,16 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window)
 		case EXIT_COMMAND:
 			return ContextMenuCommand::Exit;
 		// ここで、EXIT_COMMAND の場合は ContextMenuCommand::Exit を返します。
+		case SORT_BY_NAME_ASCENDING_COMMAND:
+			return ContextMenuCommand::SortByNameAscending;
+		case SORT_BY_NAME_DESCENDING_COMMAND:
+			return ContextMenuCommand::SortByNameDescending;
+		case SORT_BY_DATE_ASCENDING_COMMAND:
+			return ContextMenuCommand::SortByDateAscending;
+		case SORT_BY_DATE_DESCENDING_COMMAND:
+			return ContextMenuCommand::SortByDateDescending;
+		case SORT_RANDOM_COMMAND:
+			return ContextMenuCommand::SortRandom;
 		default:
 			return ContextMenuCommand::None;
 	}

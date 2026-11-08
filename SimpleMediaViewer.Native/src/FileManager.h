@@ -8,11 +8,27 @@
 
 
 /// <summary>
+/// ファイル一覧の並び順を表します。
+/// </summary>
+enum class FileSortOrder
+{
+	NameAscending,
+	NameDescending,
+	DateAscending,
+	DateDescending,
+	Random
+};
+
+
+/// <summary>
 /// 同じフォルダー内のメディア一覧と現在位置を管理します。
 /// </summary>
 class FileManager final
 {
 public:
+	/// <summary> ファイル一覧の並び順を設定します。 </summary>
+	void SetSortOrder(FileSortOrder sortOrder);
+
 	/// <summary> 指定ファイルのフォルダーにあるメディア一覧の更新を要求します。 </summary>
 	void RefreshFolderFiles(const std::wstring& path);
 
@@ -42,11 +58,16 @@ private:
 	/// <summary> 対応メディアを列挙し、自然順に並べた一覧を返します。 </summary>
 	static std::vector<std::wstring> EnumerateFolderFiles(const std::wstring& directory);
 
+	/// <summary> 現在の並び順でファイル一覧を並べ替えます。 </summary>
+	void SortFiles();
+
 	/// <summary>  現在のファイルパスに対応する一覧内の位置を更新します。 </summary>
 	void UpdateCurrentFileIndex();
 
 	// 現在のフォルダー
 	std::wstring currentDirectory_;
+	// 現在のファイル一覧の並び順
+	FileSortOrder sortOrder_ = FileSortOrder::NameAscending;
 	// 現在のファイルパスと一覧
 	std::wstring currentFilePath_;
 	// 現在のファイルパスに対応する一覧内の位置

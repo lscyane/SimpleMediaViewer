@@ -12,6 +12,11 @@ enum class ContextMenuCommand
 	FitToWindow,
 	OriginalSize,
 	TogglePlayback,
+	SortByNameAscending,
+	SortByNameDescending,
+	SortByDateAscending,
+	SortByDateDescending,
+	SortRandom,
 	Exit
 };
 

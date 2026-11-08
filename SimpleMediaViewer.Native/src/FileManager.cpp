@@ -10,9 +10,25 @@
 #include <chrono>
 #include <cwctype>
 #include <filesystem>
+#include <random>
 #include <utility>
 
 #pragma comment(lib, "Shlwapi.lib")
+
+
+/// <summary>
+/// ファイル一覧の並び順を設定します。
+/// </summary>
+void FileManager::SetSortOrder(FileSortOrder sortOrder)
+{
+	if (sortOrder_ == sortOrder && sortOrder != FileSortOrder::Random)
+	{
+		return;
+	}
+
+	sortOrder_ = sortOrder;
+	SortFiles();
+}
 
 
 /// <summary>
@@ -71,7 +87,7 @@ void FileManager::ProcessPendingScan()
 	if (result.directory == currentDirectory_)
 	{
 		fileList_ = std::move(result.files);
-		UpdateCurrentFileIndex();
+		SortFiles();
 	}
 
 	// 次のスキャンが保留されている場合は、保留されたフォルダーで再度スキャンを開始します。
@@ -161,6 +177,54 @@ std::vector<std::wstring> FileManager::EnumerateFolderFiles(const std::wstring& 
 		return StrCmpLogicalW(leftName.c_str(), rightName.c_str()) < 0;
 	});
 	return files;
+}
+
+
+/// <summary>
+/// 現在の並び順でファイル一覧を並べ替えます。
+/// </summary>
+void FileManager::SortFiles()
+{
+	if (sortOrder_ == FileSortOrder::Random)
+	{
+		static std::mt19937 randomEngine(std::random_device{}());
+		std::shuffle(fileList_.begin(), fileList_.end(), randomEngine);
+	}
+	else if (sortOrder_ == FileSortOrder::NameAscending || sortOrder_ == FileSortOrder::NameDescending)
+	{
+		const bool ascending = sortOrder_ == FileSortOrder::NameAscending;
+		std::sort(fileList_.begin(), fileList_.end(), [ascending](const std::wstring& left, const std::wstring& right)
+		{
+			const std::wstring leftName = std::filesystem::path(left).filename().wstring();
+			const std::wstring rightName = std::filesystem::path(right).filename().wstring();
+			const int comparison = StrCmpLogicalW(leftName.c_str(), rightName.c_str());
+			return ascending ? comparison < 0 : comparison > 0;
+		});
+	}
+	else
+	{
+		using FileWithTimestamp = std::pair<std::wstring, std::filesystem::file_time_type>;
+		std::vector<FileWithTimestamp> filesWithTimestamps;
+		filesWithTimestamps.reserve(fileList_.size());
+		for (const std::wstring& file : fileList_)
+		{
+			std::error_code error;
+			const std::filesystem::file_time_type timestamp = std::filesystem::last_write_time(file, error);
+			filesWithTimestamps.emplace_back(file, error ? std::filesystem::file_time_type::min() : timestamp);
+		}
+
+		const bool ascending = sortOrder_ == FileSortOrder::DateAscending;
+		std::stable_sort(filesWithTimestamps.begin(), filesWithTimestamps.end(), [ascending](const FileWithTimestamp& left, const FileWithTimestamp& right)
+		{
+			return ascending ? left.second < right.second : left.second > right.second;
+		});
+		for (size_t index = 0; index < filesWithTimestamps.size(); ++index)
+		{
+			fileList_[index] = std::move(filesWithTimestamps[index].first);
+		}
+	}
+
+	UpdateCurrentFileIndex();
 }
 
 
