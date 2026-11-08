@@ -26,6 +26,7 @@ namespace
 	constexpr UINT FILTER_COMMAND = 12;
 	constexpr UINT ROTATE_RIGHT_COMMAND = 13;
 	constexpr UINT ROTATE_LEFT_COMMAND = 14;
+	constexpr UINT TOGGLE_SLIDESHOW_COMMAND = 15;
 
 	struct MenuItem
 	{
@@ -75,7 +76,7 @@ namespace
 /// </summary>
 /// <param name="window">コンテキストメニューの表示対象となる SDL ウィンドウへのポインターです。</param>
 /// <returns>ユーザーが選択した ContextMenuCommand を返します。キャンセル時または処理失敗時は ContextMenuCommand::None です。</returns>
-ContextMenuCommand ContextMenu::Show(SDL_Window* window, FileManager& fileManager)
+ContextMenuCommand ContextMenu::Show(SDL_Window* window, FileManager& fileManager, bool isSlideshowActive)
 {
 	// ウィンドウが無効な場合は None を返します。
 	if (window == nullptr)
@@ -182,6 +183,8 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window, FileManager& fileManage
 		|| !AppendMenuW(displayMenu, MF_STRING, ROTATE_RIGHT_COMMAND, L"右回転\tR")
 		|| !AppendMenuW(displayMenu, MF_STRING, ROTATE_LEFT_COMMAND, L"左回転\tL")
 		|| !AppendMenuW(operationMenu, MF_STRING, TOGGLE_PLAYBACK_COMMAND, L"再生 / 一時停止\tSpace")
+		|| !AppendMenuW(operationMenu, MF_STRING, TOGGLE_SLIDESHOW_COMMAND,
+			isSlideshowActive ? L"スライドショー停止\tA" : L"スライドショー\tA")
 		|| !AppendMenuW(operationMenu, MF_SEPARATOR, 0, nullptr)
 		|| !AppendMenuW(operationMenu, MF_STRING, PREVIOUS_FILE_COMMAND, L"前のファイル\tLeft")
 		|| !AppendMenuW(operationMenu, MF_STRING, NEXT_FILE_COMMAND, L"次のファイル\tRight"))
@@ -242,6 +245,8 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window, FileManager& fileManage
 		// ここで、ORIGINAL_SIZE_COMMAND の場合は ContextMenuCommand::OriginalSize を返します。
 		case TOGGLE_PLAYBACK_COMMAND:
 			return ContextMenuCommand::TogglePlayback;
+		case TOGGLE_SLIDESHOW_COMMAND:
+			return ContextMenuCommand::ToggleSlideshow;
 		// ここで、TOGGLE_PLAYBACK_COMMAND の場合は ContextMenuCommand::TogglePlayback を返します。
 		case EXIT_COMMAND:
 			return ContextMenuCommand::Exit;

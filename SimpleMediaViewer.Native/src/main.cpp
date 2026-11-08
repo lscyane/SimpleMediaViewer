@@ -8,6 +8,7 @@
 #include "FileManager.h"
 #include "ImagePlayer.h"
 #include "MotionPhotoHelper.h"
+#include "SlideshowDialog.h"
 #include "VideoPlayer.h"
 #include <Windows.h>
 #include <shellapi.h>
@@ -175,6 +176,12 @@ namespace
                         waitTimeout = waitTimeout < 0 ? animationTimeout : std::min(waitTimeout, animationTimeout);
                     }
 
+                    const int slideshowTimeout = MillisecondsUntilNextSlideshowFile();
+                    if (slideshowTimeout >= 0)
+                    {
+                        waitTimeout = waitTimeout < 0 ? slideshowTimeout : std::min(waitTimeout, slideshowTimeout);
+                    }
+
 					// 音量表示のフェードアウト更新を待つ時間を計算する
                     const int volumeOverlayTimeout = MillisecondsUntilVolumeOverlayFrame();
                     if (volumeOverlayTimeout >= 0)
@@ -202,6 +209,7 @@ namespace
 
 				// ファイルスキャンの処理とアニメーションの進行を行う。描画が必要な場合は、Render()を呼び出す
                 fileManager_.ProcessPendingScan();
+                AdvanceSlideshow(needsRendering);
                 if (imagePlayer_.AdvanceAnimation())
                 {
                     needsRendering = true;
@@ -212,6 +220,42 @@ namespace
                     needsRendering = false;
                 }
             }
+        }
+
+
+        /// <summary>
+        /// 次のスライド切替までの実時間をミリ秒で返します。
+        /// </summary>
+        int MillisecondsUntilNextSlideshowFile() const
+        {
+            if (!isSlideshowActive_)
+            {
+                return -1;
+            }
+
+            const Uint64 currentTime = SDL_GetTicks();
+            if (currentTime >= nextSlideshowTime_)
+            {
+                return 0;
+            }
+
+            return static_cast<int>(nextSlideshowTime_ - currentTime);
+        }
+
+
+        /// <summary>
+        /// 切替期限を過ぎた場合は一覧の次のメディアを開きます。
+        /// </summary>
+        void AdvanceSlideshow(bool& needsRendering)
+        {
+            if (!isSlideshowActive_ || SDL_GetTicks() < nextSlideshowTime_)
+            {
+                return;
+            }
+
+            OpenRelativeFile(1);
+            nextSlideshowTime_ = SDL_GetTicks() + slideshowIntervalMilliseconds_;
+            needsRendering = true;
         }
 
 
@@ -355,6 +399,10 @@ namespace
                 {
                     HandleContextMenuCommand(ContextMenuCommand::RotateLeft, isRunning, needsRendering);
                 }
+                else if (!event.key.repeat && event.key.key == SDLK_A)
+                {
+                    HandleContextMenuCommand(ContextMenuCommand::ToggleSlideshow, isRunning, needsRendering);
+                }
                 else if (!event.key.repeat && event.key.key == SDLK_RIGHT)
                 {
                     OpenRelativeFile(1);
@@ -375,7 +423,14 @@ namespace
                 if (event.button.button == SDL_BUTTON_RIGHT)
                 {
                     isPanning_ = false;
-                    HandleContextMenuCommand(ContextMenu::Show(window_, fileManager_), isRunning, needsRendering);
+                    const bool pauseSlideshow = isSlideshowActive_;
+                    const Uint64 contextMenuStartTime = SDL_GetTicks();
+                    const ContextMenuCommand command = ContextMenu::Show(window_, fileManager_, isSlideshowActive_);
+                    if (pauseSlideshow && isSlideshowActive_)
+                    {
+                        nextSlideshowTime_ += SDL_GetTicks() - contextMenuStartTime;
+                    }
+                    HandleContextMenuCommand(command, isRunning, needsRendering);
                 }
                 else if (event.button.button == SDL_BUTTON_LEFT)
                 {
@@ -894,6 +949,9 @@ namespace
                 }
                 needsRendering = true;
                 break;
+            case ContextMenuCommand::ToggleSlideshow:
+                ToggleSlideshow();
+                break;
             case ContextMenuCommand::SortByNameAscending:
                 fileManager_.SetSortOrder(FileSortOrder::NameAscending);
                 break;
@@ -924,6 +982,39 @@ namespace
             default:
                 break;
             }
+        }
+
+
+        /// <summary>
+        /// スライドショーを停止するか、切替間隔を設定して開始します。
+        /// </summary>
+        void ToggleSlideshow()
+        {
+            if (isSlideshowActive_)
+            {
+                isSlideshowActive_ = false;
+                return;
+            }
+
+            const SDL_PropertiesID windowProperties = SDL_GetWindowProperties(window_);
+            HWND nativeWindow = reinterpret_cast<HWND>(SDL_GetPointerProperty(
+                windowProperties,
+                SDL_PROP_WINDOW_WIN32_HWND_POINTER,
+                nullptr));
+            if (nativeWindow == nullptr)
+            {
+                return;
+            }
+
+            const std::optional<int> intervalTenths = SlideshowDialog::Show(nativeWindow);
+            if (!intervalTenths.has_value())
+            {
+                return;
+            }
+
+            slideshowIntervalMilliseconds_ = static_cast<Uint64>(*intervalTenths) * 100;
+            nextSlideshowTime_ = SDL_GetTicks() + slideshowIntervalMilliseconds_;
+            isSlideshowActive_ = true;
         }
 
 
@@ -1118,6 +1209,9 @@ namespace
         std::array<Uint64, 4> videoControlKeyDownTimes_{};
 		// 現在開いているファイルの絶対パスを保持します。ウィンドウタイトルの更新や、前後のファイルを開く際に使用されます。
         std::wstring currentFilePath_;
+        bool isSlideshowActive_ = false;
+        Uint64 slideshowIntervalMilliseconds_ = 2000;
+        Uint64 nextSlideshowTime_ = 0;
     };
 }
 

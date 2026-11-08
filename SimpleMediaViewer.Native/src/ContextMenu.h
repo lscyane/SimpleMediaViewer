@@ -16,6 +16,7 @@ enum class ContextMenuCommand
 	RotateRight,
 	RotateLeft,
 	TogglePlayback,
+	ToggleSlideshow,
 	SortByNameAscending,
 	SortByNameDescending,
 	SortByDateAscending,
@@ -33,5 +34,5 @@ enum class ContextMenuCommand
 class ContextMenu final
 {
 public:
-	static ContextMenuCommand Show(SDL_Window* window, FileManager& fileManager);
+	static ContextMenuCommand Show(SDL_Window* window, FileManager& fileManager, bool isSlideshowActive);
 };
