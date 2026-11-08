@@ -138,4 +138,14 @@ xcopy /E /I /Y "$(VlcSdkRoot)\lua" "$(OutDir)lua" &gt;NUL</Command>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
+  <Target Name="CopyThirdPartyLicenses" AfterTargets="Build">
+    <Error Condition="!Exists('$(ProjectDir)..\licenses\THIRD-PARTY-NOTICES.md')"
+           Text="Third-party license notices were not found in the repository licenses directory." />
+    <ItemGroup>
+      <ThirdPartyLicenseFiles Include="$(ProjectDir)..\licenses\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ThirdPartyLicenseFiles)"
+          DestinationFiles="@(ThirdPartyLicenseFiles->'$(OutDir)licenses\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>
