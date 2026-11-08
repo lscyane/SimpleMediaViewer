@@ -2,6 +2,8 @@
 
 #include <SDL3/SDL.h>
 
+class FileManager;
+
 
 /// <summary>
 /// コンテキストメニューで使用するコマンドの種類を表す列挙型です。
@@ -29,5 +31,5 @@ enum class ContextMenuCommand
 class ContextMenu final
 {
 public:
-	static ContextMenuCommand Show(SDL_Window* window);
+	static ContextMenuCommand Show(SDL_Window* window, FileManager& fileManager);
 };

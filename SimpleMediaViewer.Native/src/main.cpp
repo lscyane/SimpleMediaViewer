@@ -359,7 +359,7 @@ namespace
                 if (event.button.button == SDL_BUTTON_RIGHT)
                 {
                     isPanning_ = false;
-                    HandleContextMenuCommand(ContextMenu::Show(window_), isRunning, needsRendering);
+                    HandleContextMenuCommand(ContextMenu::Show(window_, fileManager_), isRunning, needsRendering);
                 }
                 else if (event.button.button == SDL_BUTTON_LEFT)
                 {

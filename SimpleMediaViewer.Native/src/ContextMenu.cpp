@@ -1,4 +1,6 @@
 #include "ContextMenu.h"
+#include "FileManager.h"
+#include "FilterDialog.h"
 
 #include <Windows.h>
 
@@ -21,6 +23,7 @@ namespace
 	constexpr UINT SORT_RANDOM_COMMAND = 9;
 	constexpr UINT PREVIOUS_FILE_COMMAND = 10;
 	constexpr UINT NEXT_FILE_COMMAND = 11;
+	constexpr UINT FILTER_COMMAND = 12;
 
 	struct MenuItem
 	{
@@ -54,7 +57,7 @@ namespace
 /// </summary>
 /// <param name="window">コンテキストメニューの表示対象となる SDL ウィンドウへのポインターです。</param>
 /// <returns>ユーザーが選択した ContextMenuCommand を返します。キャンセル時または処理失敗時は ContextMenuCommand::None です。</returns>
-ContextMenuCommand ContextMenu::Show(SDL_Window* window)
+ContextMenuCommand ContextMenu::Show(SDL_Window* window, FileManager& fileManager)
 {
 	// ウィンドウが無効な場合は None を返します。
 	if (window == nullptr)
@@ -120,6 +123,13 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window)
 		return ContextMenuCommand::None;
 	}
 	if (!AppendMenuW(listMenu, MF_SEPARATOR, 0, nullptr)
+		|| !AppendMenuW(listMenu, MF_STRING, FILTER_COMMAND, L"フィルター..."))
+	{
+		DestroyMenu(listMenu);
+		DestroyMenu(menu);
+		return ContextMenuCommand::None;
+	}
+	if (!AppendMenuW(listMenu, MF_SEPARATOR, 0, nullptr)
 		|| !AppendMenuW(listMenu, MF_STRING, PREVIOUS_FILE_COMMAND, L"前のファイル\tLeft")
 		|| !AppendMenuW(listMenu, MF_STRING, NEXT_FILE_COMMAND, L"次のファイル\tRight"))
 	{
@@ -155,6 +165,11 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window)
 		nullptr);
 	DestroyMenu(menu);
 	PostMessageW(nativeWindow, WM_NULL, 0, 0);
+	if (selectedCommand == FILTER_COMMAND)
+	{
+		FilterDialog::Show(nativeWindow, fileManager);
+		return ContextMenuCommand::None;
+	}
 
 	// 選択されたコマンドIDを ContextMenuCommand 列挙型に変換して返します。
 	switch (selectedCommand)

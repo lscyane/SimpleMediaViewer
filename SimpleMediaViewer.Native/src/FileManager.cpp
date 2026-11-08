@@ -17,6 +17,15 @@
 
 
 /// <summary>
+/// すべての対応拡張子を初期選択します。
+/// </summary>
+FileManager::FileManager()
+	: selectedExtensions_(SUPPORTED_EXTENSIONS.begin(), SUPPORTED_EXTENSIONS.end())
+{
+}
+
+
+/// <summary>
 /// ファイル一覧の並び順を設定します。
 /// </summary>
 void FileManager::SetSortOrder(FileSortOrder sortOrder)
@@ -28,6 +37,28 @@ void FileManager::SetSortOrder(FileSortOrder sortOrder)
 
 	sortOrder_ = sortOrder;
 	SortFiles();
+}
+
+
+/// <summary>
+/// 拡張子の選択状態を返します。
+/// </summary>
+bool FileManager::IsExtensionSelected(const std::wstring& extension) const
+{
+	return std::any_of(selectedExtensions_.begin(), selectedExtensions_.end(), [&extension](const std::wstring& selectedExtension)
+	{
+		return CompareStringOrdinal(selectedExtension.c_str(), -1, extension.c_str(), -1, TRUE) == CSTR_EQUAL;
+	});
+}
+
+
+/// <summary>
+/// 選択された拡張子一覧を一括で設定します。
+/// </summary>
+void FileManager::SetSelectedExtensions(const std::vector<std::wstring>& extensions)
+{
+	selectedExtensions_ = extensions;
+	ApplyExtensionFilter();
 }
 
 
@@ -48,8 +79,9 @@ void FileManager::RefreshFolderFiles(const std::wstring& path)
 
 	// フォルダーが変わった場合は一覧をクリアし、非同期スキャンを開始します。
 	currentDirectory_ = directory;
+	allFileList_.clear();
 	fileList_.clear();
-	currentFileIndex_ = 0;
+	currentFileIndex_ = fileList_.size();
 	if (folderScanFuture_.valid())
 	{
 		pendingFolderDirectory_ = directory;
@@ -86,8 +118,8 @@ void FileManager::ProcessPendingScan()
 	FolderScanResult result = folderScanFuture_.get();
 	if (result.directory == currentDirectory_)
 	{
-		fileList_ = std::move(result.files);
-		SortFiles();
+		allFileList_ = std::move(result.files);
+		ApplyExtensionFilter();
 	}
 
 	// 次のスキャンが保留されている場合は、保留されたフォルダーで再度スキャンを開始します。
@@ -120,6 +152,11 @@ std::optional<std::wstring> FileManager::GetRelativeFile(int direction) const
 	if (fileList_.empty())
 	{
 		return std::nullopt;
+	}
+
+	if (currentFileIndex_ >= fileList_.size())
+	{
+		return direction < 0 ? fileList_.back() : fileList_.front();
 	}
 
 	const int count = static_cast<int>(fileList_.size());
@@ -229,11 +266,30 @@ void FileManager::SortFiles()
 
 
 /// <summary>
+/// 選択された拡張子でスキャン済み一覧を更新します。
+/// </summary>
+void FileManager::ApplyExtensionFilter()
+{
+	fileList_.clear();
+	for (const std::wstring& file : allFileList_)
+	{
+		std::wstring extension = std::filesystem::path(file).extension().wstring();
+		std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
+		if (IsExtensionSelected(extension))
+		{
+			fileList_.push_back(file);
+		}
+	}
+	SortFiles();
+}
+
+
+/// <summary>
 /// 現在のファイルパスに対応する一覧内の位置を更新します。
 /// </summary>
 void FileManager::UpdateCurrentFileIndex()
 {
-	currentFileIndex_ = 0;
+	currentFileIndex_ = fileList_.size();
 	for (size_t index = 0; index < fileList_.size(); ++index)
 	{
 		if (CompareStringOrdinal(fileList_[index].c_str(), -1, currentFilePath_.c_str(), -1, TRUE) == CSTR_EQUAL)

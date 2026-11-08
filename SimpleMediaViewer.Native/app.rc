@@ -1,2 +1,19 @@
+#pragma code_page(65001)
+
+#include <windows.h>
 #define IDI_APP_ICON 101
 IDI_APP_ICON ICON "app.ico"
+
+#include "src/resource.h"
+
+IDD_FILTER_DIALOG DIALOGEX 0, 0, 300, 242
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "フィルター"
+FONT 9, "Segoe UI"
+BEGIN
+	LTEXT "表示する拡張子を選択してください。", -1, 8, 8, 284, 12
+	PUSHBUTTON "すべてチェック", IDC_FILTER_SELECT_ALL, 8, 24, 90, 16
+	PUSHBUTTON "すべてチェックを外す", IDC_FILTER_CLEAR_ALL, 104, 24, 120, 16
+	DEFPUSHBUTTON "OK", IDOK, 184, 218, 48, 16
+	PUSHBUTTON "キャンセル", IDCANCEL, 236, 218, 56, 16
+END

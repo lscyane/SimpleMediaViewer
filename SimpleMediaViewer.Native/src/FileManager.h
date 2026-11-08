@@ -26,8 +26,16 @@ enum class FileSortOrder
 class FileManager final
 {
 public:
+	FileManager();
+
 	/// <summary> ファイル一覧の並び順を設定します。 </summary>
 	void SetSortOrder(FileSortOrder sortOrder);
+
+	/// <summary> 拡張子の選択状態を返します。 </summary>
+	bool IsExtensionSelected(const std::wstring& extension) const;
+
+	/// <summary> 選択された拡張子一覧を一括で設定します。 </summary>
+	void SetSelectedExtensions(const std::vector<std::wstring>& extensions);
 
 	/// <summary> 指定ファイルのフォルダーにあるメディア一覧の更新を要求します。 </summary>
 	void RefreshFolderFiles(const std::wstring& path);
@@ -61,6 +69,9 @@ private:
 	/// <summary> 現在の並び順でファイル一覧を並べ替えます。 </summary>
 	void SortFiles();
 
+	/// <summary> 選択された拡張子でスキャン済み一覧を更新します。 </summary>
+	void ApplyExtensionFilter();
+
 	/// <summary>  現在のファイルパスに対応する一覧内の位置を更新します。 </summary>
 	void UpdateCurrentFileIndex();
 
@@ -70,8 +81,12 @@ private:
 	FileSortOrder sortOrder_ = FileSortOrder::NameAscending;
 	// 現在のファイルパスと一覧
 	std::wstring currentFilePath_;
+	// 対応メディアのスキャン結果
+	std::vector<std::wstring> allFileList_;
 	// 現在のファイルパスに対応する一覧内の位置
 	std::vector<std::wstring> fileList_;
+	// 現在フィルター対象として選択されている拡張子
+	std::vector<std::wstring> selectedExtensions_;
 	// 現在のファイルパスに対応する一覧内の位置
 	size_t currentFileIndex_ = 0;
 	// フォルダー列挙と自然順ソートをバックグラウンドで行うための非同期タスク
