@@ -126,14 +126,6 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window, FileManager& fileManage
 		DestroyMenu(menu);
 		return ContextMenuCommand::None;
 	}
-	if (!AppendMenuW(listMenu, MF_SEPARATOR, 0, nullptr)
-		|| !AppendMenuW(listMenu, MF_STRING, PREVIOUS_FILE_COMMAND, L"前のファイル\tLeft")
-		|| !AppendMenuW(listMenu, MF_STRING, NEXT_FILE_COMMAND, L"次のファイル\tRight"))
-	{
-		DestroyMenu(listMenu);
-		DestroyMenu(menu);
-		return ContextMenuCommand::None;
-	}
 	if (!AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(listMenu), L"リスト"))
 	{
 		DestroyMenu(listMenu);
@@ -160,7 +152,10 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window, FileManager& fileManage
 	// 表示と操作のサブメニューを作成します。
 	if (!AppendMenuW(displayMenu, MF_STRING, FIT_TO_WINDOW_COMMAND, L"ウィンドウに合わせる\tF")
 		|| !AppendMenuW(displayMenu, MF_STRING, ORIGINAL_SIZE_COMMAND, L"等倍表示\tG")
-		|| !AppendMenuW(operationMenu, MF_STRING, TOGGLE_PLAYBACK_COMMAND, L"再生 / 一時停止\tSpace"))
+		|| !AppendMenuW(operationMenu, MF_STRING, TOGGLE_PLAYBACK_COMMAND, L"再生 / 一時停止\tSpace")
+		|| !AppendMenuW(operationMenu, MF_SEPARATOR, 0, nullptr)
+		|| !AppendMenuW(operationMenu, MF_STRING, PREVIOUS_FILE_COMMAND, L"前のファイル\tLeft")
+		|| !AppendMenuW(operationMenu, MF_STRING, NEXT_FILE_COMMAND, L"次のファイル\tRight"))
 	{
 		DestroyMenu(operationMenu);
 		DestroyMenu(displayMenu);
