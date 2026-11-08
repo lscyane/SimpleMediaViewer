@@ -882,6 +882,14 @@ namespace
             case ContextMenuCommand::SortRandom:
                 fileManager_.SetSortOrder(FileSortOrder::Random);
                 break;
+            case ContextMenuCommand::PreviousFile:
+                OpenRelativeFile(-1);
+                needsRendering = true;
+                break;
+            case ContextMenuCommand::NextFile:
+                OpenRelativeFile(1);
+                needsRendering = true;
+                break;
             case ContextMenuCommand::Exit:
                 isRunning = false;
                 break;

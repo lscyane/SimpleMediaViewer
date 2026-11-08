@@ -17,6 +17,8 @@ enum class ContextMenuCommand
 	SortByDateAscending,
 	SortByDateDescending,
 	SortRandom,
+	PreviousFile,
+	NextFile,
 	Exit
 };
 

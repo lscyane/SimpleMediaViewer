@@ -19,6 +19,8 @@ namespace
 	constexpr UINT SORT_BY_DATE_ASCENDING_COMMAND = 7;
 	constexpr UINT SORT_BY_DATE_DESCENDING_COMMAND = 8;
 	constexpr UINT SORT_RANDOM_COMMAND = 9;
+	constexpr UINT PREVIOUS_FILE_COMMAND = 10;
+	constexpr UINT NEXT_FILE_COMMAND = 11;
 
 	struct MenuItem
 	{
@@ -117,6 +119,14 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window)
 		DestroyMenu(menu);
 		return ContextMenuCommand::None;
 	}
+	if (!AppendMenuW(listMenu, MF_SEPARATOR, 0, nullptr)
+		|| !AppendMenuW(listMenu, MF_STRING, PREVIOUS_FILE_COMMAND, L"前のファイル\tLeft")
+		|| !AppendMenuW(listMenu, MF_STRING, NEXT_FILE_COMMAND, L"次のファイル\tRight"))
+	{
+		DestroyMenu(listMenu);
+		DestroyMenu(menu);
+		return ContextMenuCommand::None;
+	}
 	if (!AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(listMenu), L"リスト"))
 	{
 		DestroyMenu(listMenu);
@@ -172,6 +182,10 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window)
 			return ContextMenuCommand::SortByDateDescending;
 		case SORT_RANDOM_COMMAND:
 			return ContextMenuCommand::SortRandom;
+		case PREVIOUS_FILE_COMMAND:
+			return ContextMenuCommand::PreviousFile;
+		case NEXT_FILE_COMMAND:
+			return ContextMenuCommand::NextFile;
 		default:
 			return ContextMenuCommand::None;
 	}
