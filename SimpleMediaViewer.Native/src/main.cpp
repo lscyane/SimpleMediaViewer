@@ -1023,25 +1023,26 @@ namespace
         /// </summary>
         void OpenRelativeFile(int direction)
         {
-            const std::optional<std::wstring> path = fileManager_.GetRelativeFile(direction);
-            if (!path.has_value())
+            while (const std::optional<std::wstring> path = fileManager_.GetRelativeFile(direction))
             {
-                return;
+                if (OpenPath(*path))
+                {
+                    return;
+                }
+                fileManager_.RemoveFile(*path);
             }
-
-            OpenPath(*path);
         }
 
 
         /// <summary>
         /// 対応する動画ファイルを開き、SDLウィンドウ表示後にLibVLCを遅延初期化します。
         /// </summary>
-        void OpenPath(const std::wstring& path)
+        bool OpenPath(const std::wstring& path)
         {
             std::error_code fileError;
             if (path.empty() || !std::filesystem::is_regular_file(path, fileError) || fileError)
             {
-                return;
+                return false;
             }
 
             fileManager_.RefreshFolderFiles(path);
@@ -1085,6 +1086,7 @@ namespace
                     TryPlayMotionPhoto(path);
                 }
             }
+            return true;
         }
 
 

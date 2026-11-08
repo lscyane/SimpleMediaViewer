@@ -113,6 +113,25 @@ void FileManager::SetCurrentFilePath(const std::wstring& path)
 
 
 /// <summary>
+/// 使用できなくなったファイルをスキャン結果と表示対象の一覧から削除します。
+/// </summary>
+void FileManager::RemoveFile(const std::wstring& path)
+{
+	const auto matchesPath = [&path](const std::wstring& candidate)
+	{
+		return CompareStringOrdinal(candidate.c_str(), -1, path.c_str(), -1, TRUE) == CSTR_EQUAL;
+	};
+	const auto removeMatchingPaths = [&matchesPath](std::vector<std::wstring>& files)
+	{
+		files.erase(std::remove_if(files.begin(), files.end(), matchesPath), files.end());
+	};
+	removeMatchingPaths(allFileList_);
+	removeMatchingPaths(fileList_);
+	UpdateCurrentFileIndex();
+}
+
+
+/// <summary>
 /// 完了した非同期スキャンの結果を一覧へ反映します。
 /// </summary>
 void FileManager::ProcessPendingScan()
@@ -124,8 +143,20 @@ void FileManager::ProcessPendingScan()
 	}
 
 	// スキャン結果を取得し、現在のフォルダーと一致する場合のみ一覧を更新します。
-	FolderScanResult result = folderScanFuture_.get();
-	if (result.directory == currentDirectory_)
+	FolderScanResult result;
+	bool scanSucceeded = false;
+	try
+	{
+		result = folderScanFuture_.get();
+		scanSucceeded = true;
+	}
+	catch (...)
+	{
+		allFileList_.clear();
+		fileList_.clear();
+		currentFileIndex_ = fileList_.size();
+	}
+	if (scanSucceeded && result.directory == currentDirectory_)
 	{
 		allFileList_ = std::move(result.files);
 		ApplyExtensionFilter();
@@ -136,7 +167,7 @@ void FileManager::ProcessPendingScan()
 	{
 		std::wstring directory = std::move(*pendingFolderDirectory_);
 		pendingFolderDirectory_.reset();
-		if (directory != result.directory)
+		if (!scanSucceeded || directory != result.directory)
 		{
 			StartFolderScan(directory);
 		}
@@ -179,10 +210,24 @@ std::optional<std::wstring> FileManager::GetRelativeFile(int direction) const
 /// </summary>
 void FileManager::StartFolderScan(const std::wstring& directory)
 {
-	folderScanFuture_ = std::async(std::launch::async, [directory]
+	try
 	{
-		return FolderScanResult{ directory, EnumerateFolderFiles(directory) };
-	});
+		folderScanFuture_ = std::async(std::launch::async, [directory]
+		{
+			try
+			{
+				return FolderScanResult{ directory, EnumerateFolderFiles(directory) };
+			}
+			catch (...)
+			{
+				return FolderScanResult{ directory, {} };
+			}
+		});
+	}
+	catch (...)
+	{
+		folderScanFuture_ = {};
+	}
 }
 
 
@@ -193,26 +238,26 @@ std::vector<std::wstring> FileManager::EnumerateFolderFiles(const std::wstring& 
 {
 	std::vector<std::wstring> files;
 	std::error_code error;
-	for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(directory, error))
+	std::filesystem::directory_iterator iterator(directory, error);
+	const std::filesystem::directory_iterator end;
+	while (!error && iterator != end)
 	{
-		if (error)
-		{
-			break;
-		}
+		const std::filesystem::directory_entry& entry = *iterator;
 		if (!entry.is_regular_file(error))
 		{
 			error.clear();
-			continue;
 		}
-
-		// 対応する拡張子のファイルのみを一覧に追加します。
-		std::wstring extension = entry.path().extension().wstring();
-		std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
-		if (std::find(SUPPORTED_EXTENSIONS.begin(), SUPPORTED_EXTENSIONS.end(), extension) != SUPPORTED_EXTENSIONS.end())
+		else
 		{
-			files.push_back(entry.path().lexically_normal().wstring());
+			// 対応する拡張子のファイルのみを一覧に追加します。
+			std::wstring extension = entry.path().extension().wstring();
+			std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
+			if (std::find(SUPPORTED_EXTENSIONS.begin(), SUPPORTED_EXTENSIONS.end(), extension) != SUPPORTED_EXTENSIONS.end())
+			{
+				files.push_back(entry.path().lexically_normal().wstring());
+			}
 		}
-		error.clear();
+		iterator.increment(error);
 	}
 
 	// 自然順ソートを行います。

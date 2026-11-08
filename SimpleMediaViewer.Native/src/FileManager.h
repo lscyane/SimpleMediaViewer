@@ -44,6 +44,8 @@ public:
 
 	/// <summary> 現在のファイルパスを設定し、一覧内の位置を更新します。 </summary>
 	void SetCurrentFilePath(const std::wstring& path);
+	/// <summary> 使用できなくなったファイルを一覧から削除します。 </summary>
+	void RemoveFile(const std::wstring& path);
 
 	/// <summary> 完了した非同期スキャンの結果を一覧へ反映します。 </summary>
 	void ProcessPendingScan();
