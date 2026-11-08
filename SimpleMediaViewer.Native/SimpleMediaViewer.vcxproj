@@ -110,7 +110,7 @@
       <AdditionalLibraryDirectories>$(ProjectDir)vcpkg_installed\$(VcpkgTriplet)\lib;$(VlcSdkRoot);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>SDL3.lib;SDL3_image.lib;libvlc.lib;libvlccore.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
@@ -130,7 +130,8 @@
 copy /Y "$(VlcSdkRoot)\libvlccore.dll" "$(OutDir)" &gt;NUL
 xcopy /E /I /Y "$(VlcSdkRoot)\plugins" "$(OutDir)plugins" &gt;NUL
 xcopy /E /I /Y "$(VlcSdkRoot)\hrtfs" "$(OutDir)hrtfs" &gt;NUL
-xcopy /E /I /Y "$(VlcSdkRoot)\lua" "$(OutDir)lua" &gt;NUL</Command>
+xcopy /E /I /Y "$(VlcSdkRoot)\lua" "$(OutDir)lua" &gt;NUL
+del /S /Q "$(OutDir)*.pdb" 2&gt;NUL</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
