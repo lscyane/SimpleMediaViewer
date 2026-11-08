@@ -103,6 +103,8 @@ namespace
         /// </summary>
         bool Initialize(const std::wstring& initialFilePath)
         {
+            motionPhotoTempStorage_ = MotionPhotoTempStorage::Create();
+
             if (!SDL_Init(SDL_INIT_VIDEO))
             {
                 ShowSdlError(L"SDLの初期化に失敗しました");
@@ -266,6 +268,7 @@ namespace
         {
             videoPlayer_.Shutdown();
             CleanupMotionPhotoTempFile();
+            motionPhotoTempStorage_.reset();
             imagePlayer_.Clear();
             if (checkerTexture_ != nullptr)
             {
@@ -1103,22 +1106,25 @@ namespace
             }
 
 			// Motion Photoの動画部分を一時ファイルとして抽出する
-            const std::optional<std::filesystem::path> extractedPath = MotionPhotoHelper::ExtractEmbeddedVideo(path, *videoOffset);
-            if (!extractedPath.has_value())
+            if (!motionPhotoTempStorage_.has_value())
+            {
+                return false;
+            }
+            std::optional<MotionPhotoTempFile> extractedFile = MotionPhotoHelper::ExtractEmbeddedVideo(
+                path, *videoOffset, motionPhotoTempStorage_->Directory());
+            if (!extractedFile.has_value())
             {
                 return false;
             }
 
 			// Motion Photoの動画部分を再生し、再生終了後に一時ファイルを削除する
-            if (!videoPlayer_.Play(renderer_, videoFrameEventType_, videoPlaybackEndedEventType_, extractedPath->wstring(), false))
+            if (!videoPlayer_.Play(renderer_, videoFrameEventType_, videoPlaybackEndedEventType_, extractedFile->Path().wstring(), false))
             {
-                std::error_code removeError;
-                std::filesystem::remove(*extractedPath, removeError);
                 return false;
             }
 
 			// 一時ファイルのパスを保持し、再生中フラグを設定する
-            motionPhotoTempPath_ = *extractedPath;
+            motionPhotoTempFile_ = std::move(*extractedFile);
             isMotionPhotoVideoPlaying_ = true;
             return true;
         }
@@ -1129,14 +1135,7 @@ namespace
         /// </summary>
         void CleanupMotionPhotoTempFile()
         {
-            if (motionPhotoTempPath_.empty())
-            {
-                return;
-            }
-
-            std::error_code removeError;
-            std::filesystem::remove(motionPhotoTempPath_, removeError);
-            motionPhotoTempPath_.clear();
+            motionPhotoTempFile_.Reset();
         }
 
 
@@ -1181,8 +1180,9 @@ namespace
         ImagePlayer imagePlayer_;
 		// FileManagerクラスのインスタンスを保持します。現在のフォルダ内のファイル一覧を管理し、前後のファイルを開く際に使用されます。
         FileManager fileManager_;
-		// Motion Photoの動画部分を一時的に保存するパスを保持します。再生終了後に削除されます。
-        std::filesystem::path motionPhotoTempPath_;
+        // Motion Photo動画の専用一時ディレクトリと、抽出ファイルの所有権を保持します。
+        std::optional<MotionPhotoTempStorage> motionPhotoTempStorage_;
+        MotionPhotoTempFile motionPhotoTempFile_;
 		// ウィンドウの表示モードを保持します。trueの場合はウィンドウサイズに合わせて表示し、falseの場合は元のサイズで表示します。
         bool fitToWindow_ = true;
 		// ズーム操作中の倍率を保持します。マウスホイールでズーム操作を行う際に使用されます。

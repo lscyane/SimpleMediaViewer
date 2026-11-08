@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -18,6 +18,22 @@
     <ProjectName>SimpleMediaViewer</ProjectName>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <VlcSdkRoot>$(UserProfile)\.nuget\packages\videolan.libvlc.windows\3.0.24\build\x64</VlcSdkRoot>
+    <VersionPrefix>0.0.0</VersionPrefix>
+    <BuildNumber>0</BuildNumber>
+    <VersionSuffix>
+    </VersionSuffix>
+    <FileVersion>$(VersionPrefix).$(BuildNumber)</FileVersion>
+    <AssemblyVersion>$(FileVersion)</AssemblyVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Company>TeaSoundProject</Company>
+    <CompanyShortName>TSP</CompanyShortName>
+    <Copyright>(C) 2026 lscyane</Copyright>
+    <AssemblyTitle>SimpleMediaViewer</AssemblyTitle>
+    <Product>$(AssemblyTitle)</Product>
+    <ProductDisplayName>$(AssemblyTitle)</ProductDisplayName>
+    <NeutralLanguage>en</NeutralLanguage>
+    <FileVersionResource>$(FileVersion)</FileVersionResource>
+    <ProductVersionResource>$(FileVersion)</ProductVersionResource>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -40,6 +56,11 @@
     <VcpkgApplocalDeps>true</VcpkgApplocalDeps>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ResourceCompile>
+      <PreprocessorDefinitions>COMPANY_NAME=$(Company);COMPANY_SHORT_NAME=$(CompanyShortName);COPYRIGHT_TEXT=$(Copyright);PRODUCT_NAME=$(ProductDisplayName);FILE_VERSION_STRING=$(FileVersion);PRODUCT_VERSION_STRING=$(FileVersion);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
   <ImportGroup Label="ExtensionSettings" />
   <ImportGroup Label="Shared" />
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -139,13 +160,10 @@ xcopy /E /I /Y "$(VlcSdkRoot)\lua" "$(OutDir)lua" &gt;NUL</Command>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
   <Target Name="CopyThirdPartyLicenses" AfterTargets="Build">
-    <Error Condition="!Exists('$(ProjectDir)..\licenses\THIRD-PARTY-NOTICES.md')"
-           Text="Third-party license notices were not found in the repository licenses directory." />
+    <Error Condition="!Exists('$(ProjectDir)..\licenses\THIRD-PARTY-NOTICES.md')" Text="Third-party license notices were not found in the repository licenses directory." />
     <ItemGroup>
       <ThirdPartyLicenseFiles Include="$(ProjectDir)..\licenses\**\*" />
     </ItemGroup>
-    <Copy SourceFiles="@(ThirdPartyLicenseFiles)"
-          DestinationFiles="@(ThirdPartyLicenseFiles->'$(OutDir)licenses\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ThirdPartyLicenseFiles)" DestinationFiles="@(ThirdPartyLicenseFiles-&gt;'$(OutDir)licenses\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 </Project>

@@ -6,6 +6,35 @@ IDI_APP_ICON ICON "app.ico"
 
 #include "src/resource.h"
 
+1 VERSIONINFO
+   FILEVERSION 0,0,0,0
+ PRODUCTVERSION 0,0,0,0
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+ FILEFLAGS 0
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+	BLOCK "StringFileInfo"
+	BEGIN
+		BLOCK "040904B0"
+		BEGIN
+			VALUE "CompanyName", "TeaSoundProject (TSP)\0"
+			VALUE "FileDescription", "SimpleMediaViewer\0"
+			VALUE "FileVersion", "0.0.0.0\0"
+			VALUE "InternalName", "SimpleMediaViewer\0"
+			VALUE "LegalCopyright", "(C) 2026 lscyane\0"
+			VALUE "OriginalFilename", "SimpleMediaViewer.exe\0"
+			VALUE "ProductName", "SimpleMediaViewer\0"
+			VALUE "ProductVersion", "0.0.0.0\0"
+		END
+	END
+	BLOCK "VarFileInfo"
+	BEGIN
+		VALUE "Translation", 0x0409, 1200
+	END
+END
+
 IDD_FILTER_DIALOG DIALOGEX 0, 0, 300, 242
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "フィルター"
