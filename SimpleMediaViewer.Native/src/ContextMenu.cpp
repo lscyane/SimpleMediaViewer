@@ -24,6 +24,8 @@ namespace
 	constexpr UINT PREVIOUS_FILE_COMMAND = 10;
 	constexpr UINT NEXT_FILE_COMMAND = 11;
 	constexpr UINT FILTER_COMMAND = 12;
+	constexpr UINT ROTATE_RIGHT_COMMAND = 13;
+	constexpr UINT ROTATE_LEFT_COMMAND = 14;
 
 	struct MenuItem
 	{
@@ -152,6 +154,8 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window, FileManager& fileManage
 	// 表示と操作のサブメニューを作成します。
 	if (!AppendMenuW(displayMenu, MF_STRING, FIT_TO_WINDOW_COMMAND, L"ウィンドウに合わせる\tF")
 		|| !AppendMenuW(displayMenu, MF_STRING, ORIGINAL_SIZE_COMMAND, L"等倍表示\tG")
+		|| !AppendMenuW(displayMenu, MF_STRING, ROTATE_RIGHT_COMMAND, L"右回転\tR")
+		|| !AppendMenuW(displayMenu, MF_STRING, ROTATE_LEFT_COMMAND, L"左回転\tL")
 		|| !AppendMenuW(operationMenu, MF_STRING, TOGGLE_PLAYBACK_COMMAND, L"再生 / 一時停止\tSpace")
 		|| !AppendMenuW(operationMenu, MF_SEPARATOR, 0, nullptr)
 		|| !AppendMenuW(operationMenu, MF_STRING, PREVIOUS_FILE_COMMAND, L"前のファイル\tLeft")
@@ -206,6 +210,10 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window, FileManager& fileManage
 		// ここで、FIT_TO_WINDOW_COMMAND の場合は ContextMenuCommand::FitToWindow を返します。
 		case ORIGINAL_SIZE_COMMAND:
 			return ContextMenuCommand::OriginalSize;
+		case ROTATE_RIGHT_COMMAND:
+			return ContextMenuCommand::RotateRight;
+		case ROTATE_LEFT_COMMAND:
+			return ContextMenuCommand::RotateLeft;
 		// ここで、ORIGINAL_SIZE_COMMAND の場合は ContextMenuCommand::OriginalSize を返します。
 		case TOGGLE_PLAYBACK_COMMAND:
 			return ContextMenuCommand::TogglePlayback;

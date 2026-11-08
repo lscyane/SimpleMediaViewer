@@ -46,8 +46,8 @@ public:
 	/// <summary>動画テクスチャのピクセル高さを返します。</summary>
 	int Height() const noexcept;
 
-	/// <summary>指定された変換先矩形に動画テクスチャを描画します。</summary>
-	void Render(SDL_Renderer* renderer, const SDL_FRect& destination) const;
+	/// <summary>指定された変換先矩形に動画テクスチャを回転して描画します。</summary>
+	void Render(SDL_Renderer* renderer, const SDL_FRect& destination, double rotationAngle) const;
 
 	/// <summary>動画が再生中かどうかを返します。</summary>
 	bool IsActive() const noexcept;

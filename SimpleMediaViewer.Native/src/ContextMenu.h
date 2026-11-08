@@ -13,6 +13,8 @@ enum class ContextMenuCommand
 	None,
 	FitToWindow,
 	OriginalSize,
+	RotateRight,
+	RotateLeft,
 	TogglePlayback,
 	SortByNameAscending,
 	SortByNameDescending,

@@ -45,8 +45,8 @@ public:
 	/// <summary>画像のピクセル高さを返します。</summary>
 	int Height() const noexcept;
 
-	/// <summary>指定された変換先矩形に画像を描画します。</summary>
-	void Render(SDL_Renderer* renderer, const SDL_FRect& destination) const;
+	/// <summary>指定された変換先矩形に画像を回転して描画します。</summary>
+	void Render(SDL_Renderer* renderer, const SDL_FRect& destination, double rotationAngle) const;
 
 private:
 	/// <summary>指定形式のアニメーションデコーダーからフレームを読み込みます。</summary>

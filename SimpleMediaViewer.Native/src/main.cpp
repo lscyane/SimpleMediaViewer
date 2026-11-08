@@ -347,6 +347,14 @@ namespace
                 {
                     HandleContextMenuCommand(ContextMenuCommand::OriginalSize, isRunning, needsRendering);
                 }
+                else if (!event.key.repeat && event.key.key == SDLK_R)
+                {
+                    HandleContextMenuCommand(ContextMenuCommand::RotateRight, isRunning, needsRendering);
+                }
+                else if (!event.key.repeat && event.key.key == SDLK_L)
+                {
+                    HandleContextMenuCommand(ContextMenuCommand::RotateLeft, isRunning, needsRendering);
+                }
                 else if (!event.key.repeat && event.key.key == SDLK_RIGHT)
                 {
                     OpenRelativeFile(1);
@@ -460,9 +468,12 @@ namespace
                 const int mediaHeight = renderVideo ? videoPlayer_.Height() : imagePlayer_.Height();
                 if (mediaWidth > 0 && mediaHeight > 0)
                 {
+                    const bool isQuarterTurn = rotationAngle_ == 90 || rotationAngle_ == 270;
+                    const int orientedWidth = isQuarterTurn ? mediaHeight : mediaWidth;
+                    const int orientedHeight = isQuarterTurn ? mediaWidth : mediaHeight;
                     const float fitScale = std::min(
-                        static_cast<float>(outputWidth) / static_cast<float>(mediaWidth),
-                        static_cast<float>(outputHeight) / static_cast<float>(mediaHeight));
+                        static_cast<float>(outputWidth) / static_cast<float>(orientedWidth),
+                        static_cast<float>(outputHeight) / static_cast<float>(orientedHeight));
                     const float baseScale = fitToWindow_ ? fitScale : 1.0f;
                     const float width = static_cast<float>(mediaWidth) * baseScale * zoom_;
                     const float height = static_cast<float>(mediaHeight) * baseScale * zoom_;
@@ -474,11 +485,11 @@ namespace
                     };
                     if (renderVideo)
                     {
-                        videoPlayer_.Render(renderer_, destination);
+                        videoPlayer_.Render(renderer_, destination, rotationAngle_);
                     }
                     else if (imagePlayer_.IsLoaded())
                     {
-                        imagePlayer_.Render(renderer_, destination);
+                        imagePlayer_.Render(renderer_, destination, rotationAngle_);
                     }
                 }
             }
@@ -864,6 +875,14 @@ namespace
                 panY_ = 0.0f;
                 needsRendering = true;
                 break;
+            case ContextMenuCommand::RotateRight:
+                rotationAngle_ = (rotationAngle_ + 90) % 360;
+                needsRendering = true;
+                break;
+            case ContextMenuCommand::RotateLeft:
+                rotationAngle_ = (rotationAngle_ + 270) % 360;
+                needsRendering = true;
+                break;
             case ContextMenuCommand::TogglePlayback:
                 if (imagePlayer_.IsAnimated())
                 {
@@ -951,6 +970,7 @@ namespace
             zoom_ = 1.0f;
             panX_ = 0.0f;
             panY_ = 0.0f;
+            rotationAngle_ = 0;
 
             std::wstring extension = std::filesystem::path(path).extension().wstring();
             std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
@@ -1078,6 +1098,8 @@ namespace
         float panX_ = 0.0f;
 		// パン操作中のX座標のオフセットを保持します。左クリックでパン操作を開始する際に使用されます。
         float panY_ = 0.0f;
+        // 現在のメディアの回転角度を保持します。
+        int rotationAngle_ = 0;
 		// パン操作中かどうかを保持します。左クリックでパン操作を開始する際に使用されます。
         bool isPanning_ = false;
 		// Motion Photoの動画部分が再生中かどうかを保持します。再生終了後に一時ファイルを削除するために使用されます。

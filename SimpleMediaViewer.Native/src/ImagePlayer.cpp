@@ -1040,12 +1040,12 @@ int ImagePlayer::Height() const noexcept
 
 
 /// <summary>
-/// 指定された変換先矩形に画像を描画します。
+/// 指定された変換先矩形に画像を回転して描画します。
 /// </summary>
-void ImagePlayer::Render(SDL_Renderer* renderer, const SDL_FRect& destination) const
+void ImagePlayer::Render(SDL_Renderer* renderer, const SDL_FRect& destination, double rotationAngle) const
 {
 	if (texture_ != nullptr)
 	{
-		SDL_RenderTexture(renderer, texture_, nullptr, &destination);
+		SDL_RenderTextureRotated(renderer, texture_, nullptr, &destination, rotationAngle, nullptr, SDL_FLIP_NONE);
 	}
 }
