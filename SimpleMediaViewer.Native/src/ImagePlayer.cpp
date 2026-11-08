@@ -248,16 +248,34 @@ namespace
 		{
 			return false;
 		}
+		scan.seekg(0, std::ios::end);
+		const std::streamoff scanFileSize = scan.tellg();
+		if (scanFileSize < static_cast<std::streamoff>(PNG_SIGNATURE.size()))
+		{
+			return false;
+		}
+		scan.seekg(static_cast<std::streamoff>(PNG_SIGNATURE.size()), std::ios::beg);
+		if (!scan)
+		{
+			return false;
+		}
 
 		// PNGチャンクをスキャンして、fdATチャンクが複数フレームに分割されているかを確認します。
 		const Uint8* const fdatType = reinterpret_cast<const Uint8*>("fdAT");
 		const Uint8* const fctlType = reinterpret_cast<const Uint8*>("fcTL");
 		const Uint8* const iendType = reinterpret_cast<const Uint8*>("IEND");
+		const std::uint64_t scanFileSizeUnsigned = static_cast<std::uint64_t>(scanFileSize);
+		std::uint64_t scanOffset = PNG_SIGNATURE.size();
 		size_t frameDataChunkCount = 0;
 		bool hasFragmentedFrameData = false;
 		bool hasEndChunk = false;
-		while (scan)
+		while (scanOffset < scanFileSizeUnsigned)
 		{
+			if (scanFileSizeUnsigned - scanOffset < 12)
+			{
+				return false;
+			}
+
 			// チャンクのヘッダー（データサイズと種類）を読み取ります。
 			std::array<Uint8, 8> chunkHeader{};
 			scan.read(reinterpret_cast<char*>(chunkHeader.data()), static_cast<std::streamsize>(chunkHeader.size()));
@@ -268,6 +286,11 @@ namespace
 
 			// チャンクのデータサイズと種類を読み取ります。
 			const Uint32 dataSize = ReadBigEndian32(chunkHeader.data());
+			const std::uint64_t remainingBytes = scanFileSizeUnsigned - scanOffset;
+			if (static_cast<std::uint64_t>(dataSize) > remainingBytes - 12)
+			{
+				return false;
+			}
 			const Uint8* type = chunkHeader.data() + 4;
 			if (std::equal(type, type + 4, fctlType))
 			{
@@ -285,7 +308,16 @@ namespace
 
 			// IENDチャンクに到達したらループを終了します。
 			const bool isEndChunk = std::equal(type, type + 4, iendType);
-			scan.seekg(static_cast<std::streamoff>(dataSize) + 4, std::ios::cur);
+			if (isEndChunk && dataSize != 0)
+			{
+				return false;
+			}
+			scanOffset += static_cast<std::uint64_t>(dataSize) + 12;
+			if (isEndChunk && scanOffset != scanFileSizeUnsigned)
+			{
+				return false;
+			}
+			scan.seekg(static_cast<std::streamoff>(scanOffset), std::ios::beg);
 			if (!scan)
 			{
 				return false;
@@ -339,6 +371,7 @@ namespace
 		std::vector<Uint8> frameData;
 		Uint64 sequenceNumber = 0;
 		bool hasFrameData = false;
+		bool hasSecondPassEndChunk = false;
 		auto flushFrameData = [&]()
 		{
 			if (!hasFrameData || sequenceNumber > std::numeric_limits<Uint32>::max() ||
@@ -361,17 +394,40 @@ namespace
 
 		// fdATチャンクを結合してAPNGを再構成します。
 		offset = PNG_SIGNATURE.size();
-		while (offset <= source.size() && source.size() - offset >= 12)
+		while (offset < source.size())
 		{
+			if (source.size() - offset < 12)
+			{
+				normalizedData.clear();
+				return false;
+			}
+
 			// チャンクのデータサイズ、種類、ペイロードを読み取ります。
 			const Uint32 dataSize = ReadBigEndian32(source.data() + offset);
+			if (static_cast<size_t>(dataSize) > source.size() - offset - 12)
+			{
+				normalizedData.clear();
+				return false;
+			}
+			const size_t chunkEnd = offset + static_cast<size_t>(dataSize) + 12;
 			const Uint8* type = source.data() + offset + 4;
 			const Uint8* payload = source.data() + offset + 8;
+			const bool isEndChunk = std::equal(type, type + 4, iendType);
+			if (isEndChunk && dataSize != 0)
+			{
+				normalizedData.clear();
+				return false;
+			}
 			if (std::equal(type, type + 4, fdatType))
 			{
+				if (dataSize < 4)
+				{
+					normalizedData.clear();
+					return false;
+				}
 				frameData.insert(frameData.end(), payload + 4, payload + dataSize);
 				hasFrameData = true;
-				offset += static_cast<size_t>(dataSize) + 12;
+				offset = chunkEnd;
 				continue;
 			}
 
@@ -400,17 +456,26 @@ namespace
 			else
 			{
 				// fdATチャンク以外のチャンクはそのままコピーします。
-				const size_t chunkEnd = offset + static_cast<size_t>(dataSize) + 12;
 				normalizedData.insert(normalizedData.end(), source.begin() + offset, source.begin() + chunkEnd);
 			}
 
 			// IENDチャンクに到達したらループを終了します。
-			const bool isEndChunk = std::equal(type, type + 4, iendType);
-			offset += static_cast<size_t>(dataSize) + 12;
+			offset = chunkEnd;
 			if (isEndChunk)
 			{
+				if (offset != source.size())
+				{
+					normalizedData.clear();
+					return false;
+				}
+				hasSecondPassEndChunk = true;
 				break;
 			}
+		}
+		if (!hasSecondPassEndChunk)
+		{
+			normalizedData.clear();
+			return false;
 		}
 
 		// 最後のフレームデータが残っている場合はfdATチャンクとして追加します。
