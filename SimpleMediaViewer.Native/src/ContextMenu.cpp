@@ -3,7 +3,6 @@
 #include <Windows.h>
 
 #include <array>
-#include <utility>
 
 
 /// <summary>
@@ -16,12 +15,24 @@ namespace
 	constexpr UINT TOGGLE_PLAYBACK_COMMAND = 3;
 	constexpr UINT EXIT_COMMAND = 4;
 
-	constexpr std::array<std::pair<UINT, LPCWSTR>, 4> MENU_ITEMS{
-		std::pair{ FIT_TO_WINDOW_COMMAND, L"Fit to window" },
-		std::pair{ ORIGINAL_SIZE_COMMAND, L"Original size" },
-		std::pair{ TOGGLE_PLAYBACK_COMMAND, L"Play / pause" },
-		std::pair{ EXIT_COMMAND, L"Exit" }
+	struct MenuItem
+	{
+		UINT flags;
+		UINT command;
+		LPCWSTR label;
 	};
+
+
+	/// <summary>
+	/// メニュー項目を保持する定数配列を定義します。
+	/// </summary>
+	constexpr std::array<MenuItem, 5> MENU_ITEMS{{
+		{ MF_STRING, FIT_TO_WINDOW_COMMAND, L"Fit to window" },
+		{ MF_STRING, ORIGINAL_SIZE_COMMAND, L"Original size" },
+		{ MF_STRING, TOGGLE_PLAYBACK_COMMAND, L"Play / pause" },
+		{ MF_SEPARATOR, 0, nullptr },
+		{ MF_STRING, EXIT_COMMAND, L"Exit" }
+	}};
 }
 
 
@@ -64,9 +75,9 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window)
 	}
 
 	// メニュー項目を追加します。失敗した場合はメニューを破棄して None を返します。
-	for (const auto& [command, label] : MENU_ITEMS)
+	for (const MenuItem& item : MENU_ITEMS)
 	{
-		if (!AppendMenuW(menu, MF_STRING, command, label))
+		if (!AppendMenuW(menu, item.flags, item.command, item.label))
 		{
 			DestroyMenu(menu);
 			return ContextMenuCommand::None;
