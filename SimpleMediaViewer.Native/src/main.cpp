@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include "CONST.hpp"
+#include "ContextMenu.h"
 #include "FileManager.h"
 #include "ImagePlayer.h"
 #include "MotionPhotoHelper.h"
@@ -353,30 +354,16 @@ namespace
             case SDL_EVENT_KEY_UP:
                 HandleVideoControlKeyUp(event.key.scancode);
                 break;
-			// SDL_EVENT_MOUSE_BUTTON_DOWNは、マウスボタンが押されたときに発生するイベントです。右クリックでコンテキストメニューを表示し、左クリックでコンテキストメニューの項目を選択するか、パン操作を開始します。
+            // SDL_EVENT_MOUSE_BUTTON_DOWNは、右クリックでネイティブコンテキストメニューを表示し、左クリックでパン操作を開始します。
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 if (event.button.button == SDL_BUTTON_RIGHT)
                 {
-                    int windowWidth = 0;
-                    int windowHeight = 0;
-                    SDL_GetWindowSize(window_, &windowWidth, &windowHeight);
-                    contextMenuX_ = std::clamp(event.button.x, 0.0f, std::max(0.0f, windowWidth - CONTEXT_MENU_WIDTH));
-                    contextMenuY_ = std::clamp(event.button.y, 0.0f, std::max(0.0f, windowHeight - CONTEXT_MENU_ROW_HEIGHT * 4.0f));
-                    contextMenuOpen_ = true;
                     isPanning_ = false;
-                    needsRendering = true;
+                    HandleContextMenuCommand(ContextMenu::Show(window_), isRunning, needsRendering);
                 }
                 else if (event.button.button == SDL_BUTTON_LEFT)
                 {
-                    if (contextMenuOpen_)
-                    {
-                        HandleContextMenuClick(event.button.x, event.button.y, isRunning);
-                        needsRendering = true;
-                    }
-                    else
-                    {
-                        isPanning_ = true;
-                    }
+                    isPanning_ = true;
                 }
                 break;
 			// SDL_EVENT_MOUSE_BUTTON_UPは、マウスボタンが離されたときに発生するイベントです。左クリックでパン操作を終了します。
@@ -488,10 +475,7 @@ namespace
                 }
             }
 
-			// コンテキストメニューと音量表示を描画する
-            RenderContextMenu(outputWidth, outputHeight);
-
-			// 音量表示のフェードアウトを描画する
+            // 音量表示のフェードアウトを描画する
             RenderVolumeOverlay(outputWidth, outputHeight);
 
 			// SDLの描画内容をウィンドウへ提示する
@@ -724,48 +708,6 @@ namespace
 
 
         /// <summary>
-        /// 右クリックメニューを背景画像の上へ描画します。
-        /// </summary>
-        void RenderContextMenu(int outputWidth, int outputHeight)
-        {
-            if (!contextMenuOpen_)
-            {
-                return;
-            }
-
-			// コンテキストメニューの位置とサイズをウィンドウの描画サイズに合わせてスケーリングする
-            int windowWidth = 0;
-            int windowHeight = 0;
-            SDL_GetWindowSize(window_, &windowWidth, &windowHeight);
-            const float scaleX = windowWidth > 0 ? static_cast<float>(outputWidth) / windowWidth : 1.0f;
-            const float scaleY = windowHeight > 0 ? static_cast<float>(outputHeight) / windowHeight : 1.0f;
-            const SDL_FRect panel{
-                contextMenuX_ * scaleX,
-                contextMenuY_ * scaleY,
-                CONTEXT_MENU_WIDTH * scaleX,
-                CONTEXT_MENU_ROW_HEIGHT * 4.0f * scaleY
-            };
-
-			// コンテキストメニューの背景を半透明で描画する
-            SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer_, 34, 34, 34, 238);
-            SDL_RenderFillRect(renderer_, &panel);
-            SDL_SetRenderDrawColor(renderer_, 240, 240, 240, 255);
-
-			// コンテキストメニューの項目を描画する
-            constexpr std::array<const char*, 4> MENU_ITEMS{
-                "Fit to window", "Original size", "Play / pause", "Exit"
-            };
-            for (size_t index = 0; index < MENU_ITEMS.size(); ++index)
-            {
-                const float textX = panel.x + 10.0f * scaleX;
-                const float textY = panel.y + (static_cast<float>(index) * CONTEXT_MENU_ROW_HEIGHT + 10.0f) * scaleY;
-                SDL_RenderDebugText(renderer_, textX, textY, MENU_ITEMS[index]);
-            }
-        }
-
-
-        /// <summary>
         /// 数字列またはテンキーの動画操作キーから操作番号を取得します。
         /// </summary>
         static int GetVideoControlKeyIndex(SDL_Scancode scancode)
@@ -894,34 +836,27 @@ namespace
 
 
         /// <summary>
-        /// 右クリックメニュー項目を選択し、表示状態や再生状態を更新します。
+        /// ネイティブコンテキストメニューの選択結果を実行します。
         /// </summary>
-        void HandleContextMenuClick(float x, float y, bool& isRunning)
+        void HandleContextMenuCommand(ContextMenuCommand command, bool& isRunning, bool& needsRendering)
         {
-            const bool inside = x >= contextMenuX_ && x < contextMenuX_ + CONTEXT_MENU_WIDTH &&
-                y >= contextMenuY_ && y < contextMenuY_ + CONTEXT_MENU_ROW_HEIGHT * 4.0f;
-            contextMenuOpen_ = false;
-            if (!inside)
+            switch (command)
             {
-                return;
-            }
-
-            const int selectedItem = static_cast<int>((y - contextMenuY_) / CONTEXT_MENU_ROW_HEIGHT);
-            switch (selectedItem)
-            {
-            case 0:
+            case ContextMenuCommand::FitToWindow:
                 fitToWindow_ = true;
                 zoom_ = 1.0f;
                 panX_ = 0.0f;
                 panY_ = 0.0f;
+                needsRendering = true;
                 break;
-            case 1:
+            case ContextMenuCommand::OriginalSize:
                 fitToWindow_ = false;
                 zoom_ = 1.0f;
                 panX_ = 0.0f;
                 panY_ = 0.0f;
+                needsRendering = true;
                 break;
-            case 2:
+            case ContextMenuCommand::TogglePlayback:
                 if (imagePlayer_.IsAnimated())
                 {
                     imagePlayer_.TogglePause();
@@ -930,10 +865,12 @@ namespace
                 {
                     videoPlayer_.TogglePause();
                 }
+                needsRendering = true;
                 break;
-            case 3:
+            case ContextMenuCommand::Exit:
                 isRunning = false;
                 break;
+            case ContextMenuCommand::None:
             default:
                 break;
             }
@@ -1112,8 +1049,6 @@ namespace
         float panY_ = 0.0f;
 		// パン操作中かどうかを保持します。左クリックでパン操作を開始する際に使用されます。
         bool isPanning_ = false;
-		// コンテキストメニューが開いているかどうかを保持します。右クリックでコンテキストメニューを表示する際に使用されます。
-        bool contextMenuOpen_ = false;
 		// Motion Photoの動画部分が再生中かどうかを保持します。再生終了後に一時ファイルを削除するために使用されます。
         bool isMotionPhotoVideoPlaying_ = false;
 		// 音量表示の値を保持します。-1の場合は表示しません。
@@ -1128,10 +1063,6 @@ namespace
         std::array<bool, 4> videoControlKeysHeld_{};
 		// 動画操作キーの押下時刻を保持します。連続操作の開始判定に使用されます。
         std::array<Uint64, 4> videoControlKeyDownTimes_{};
-		// コンテキストメニューのX座標を保持します。右クリックでコンテキストメニューを表示する際に使用されます。
-        float contextMenuX_ = 0.0f;
-		// コンテキストメニューのY座標を保持します。右クリックでコンテキストメニューを表示する際に使用されます。
-        float contextMenuY_ = 0.0f;
 		// 現在開いているファイルの絶対パスを保持します。ウィンドウタイトルの更新や、前後のファイルを開く際に使用されます。
         std::wstring currentFilePath_;
     };

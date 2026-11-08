@@ -40,11 +40,6 @@ inline constexpr int CHECKER_CELL_SIZE = 32;
 inline constexpr SDL_Color CHECKER_LIGHT_COLOR{ 112, 112, 112, 255 };
 // 市松模様の暗いマスの色（RGBA）。
 inline constexpr SDL_Color CHECKER_DARK_COLOR{ 72, 72, 72, 255 };
-// コンテキストメニューの幅（論理ピクセル）。
-inline constexpr float CONTEXT_MENU_WIDTH = 196.0f;
-// コンテキストメニューの1項目あたりの高さ（論理ピクセル）。
-inline constexpr float CONTEXT_MENU_ROW_HEIGHT = 30.0f;
-
 // -------------------------------------------------------------
 // 画像関連設定
 // -------------------------------------------------------------
