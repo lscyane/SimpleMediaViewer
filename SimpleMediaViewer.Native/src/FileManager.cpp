@@ -41,6 +41,15 @@ void FileManager::SetSortOrder(FileSortOrder sortOrder)
 
 
 /// <summary>
+/// 現在のファイル一覧の並び順を返します。
+/// </summary>
+FileSortOrder FileManager::GetSortOrder() const noexcept
+{
+	return sortOrder_;
+}
+
+
+/// <summary>
 /// 拡張子の選択状態を返します。
 /// </summary>
 bool FileManager::IsExtensionSelected(const std::wstring& extension) const

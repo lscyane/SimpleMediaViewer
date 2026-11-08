@@ -30,6 +30,8 @@ public:
 
 	/// <summary> ファイル一覧の並び順を設定します。 </summary>
 	void SetSortOrder(FileSortOrder sortOrder);
+	/// <summary> 現在のファイル一覧の並び順を返します。 </summary>
+	FileSortOrder GetSortOrder() const noexcept;
 
 	/// <summary> 拡張子の選択状態を返します。 </summary>
 	bool IsExtensionSelected(const std::wstring& extension) const;

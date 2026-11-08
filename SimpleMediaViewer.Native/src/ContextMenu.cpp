@@ -48,6 +48,25 @@ namespace
 		{ MF_SEPARATOR, 0, nullptr },
 		{ MF_STRING, EXIT_COMMAND, L"終了\tEsc" }
 	}};
+
+	UINT GetSortOrderCommand(FileSortOrder sortOrder)
+	{
+		switch (sortOrder)
+		{
+		case FileSortOrder::NameAscending:
+			return SORT_BY_NAME_ASCENDING_COMMAND;
+		case FileSortOrder::NameDescending:
+			return SORT_BY_NAME_DESCENDING_COMMAND;
+		case FileSortOrder::DateAscending:
+			return SORT_BY_DATE_ASCENDING_COMMAND;
+		case FileSortOrder::DateDescending:
+			return SORT_BY_DATE_DESCENDING_COMMAND;
+		case FileSortOrder::Random:
+			return SORT_RANDOM_COMMAND;
+		default:
+			return SORT_BY_NAME_ASCENDING_COMMAND;
+		}
+	}
 }
 
 
@@ -114,6 +133,12 @@ ContextMenuCommand ContextMenu::Show(SDL_Window* window, FileManager& fileManage
 			return ContextMenuCommand::None;
 		}
 	}
+	CheckMenuRadioItem(
+		sortMenu,
+		SORT_BY_NAME_ASCENDING_COMMAND,
+		SORT_RANDOM_COMMAND,
+		GetSortOrderCommand(fileManager.GetSortOrder()),
+		MF_BYCOMMAND);
 	if (!AppendMenuW(listMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(sortMenu), L"並び順"))
 	{
 		DestroyMenu(sortMenu);
